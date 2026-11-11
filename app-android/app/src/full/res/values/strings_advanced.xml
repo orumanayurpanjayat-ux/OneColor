@@ -419,4 +419,7 @@
     <string name="bring_change_data">One UI has newer data</string>
     <string name="bring_change_app">Updated on One UI since</string>
     <string name="bring_change_gone">No longer installed on One UI</string>
+    <string name="biometric_help_title">Fingerprint and face</string>
+    <string name="biometric_help_summary">How guest biometrics work and what to check</string>
+    <string name="biometric_help_message">OneOS can carry the fingerprint and face enrollment records from One UI into the guest. Your biometric templates stay inside the phone&apos;s secure hardware; OneOS does not copy them. The guest can use an enrollment that already exists in One UI, but adding a new fingerprint or face inside the guest is not supported by this local-PIN setup. If the sensor is missing, first check that the enrollment still exists in One UI, then update the guest system and its fixes. If it still fails, collect the session logs and send them to the OneOS team.</string>
 </resources>

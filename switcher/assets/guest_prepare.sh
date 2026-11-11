@@ -3820,6 +3820,32 @@ chown 1000:1000 "$STAGE/data/vendor_de/0/fpdata" 2>/dev/null || true
 chmod 700 "$STAGE/data/vendor_de/0/fpdata" 2>/dev/null || true
 $BB chcon u:object_r:fingerprint_vendor_data_file:s0 "$STAGE/data/vendor_de/0/fpdata" 2>/dev/null || true
 
+# ColorOS can only use the biometrics the phone's TEE already holds. Enrolling
+# inside the guest needs a HardwareAuthToken, and the guest has no gatekeeper
+# to mint one (its PIN is verified locally), so ColorOS's "Add" does nothing.
+# Carry One UI's enrollment metadata across instead: the templates never leave
+# the TEE, and no credential, gatekeeper handle or SP blob is read. ColorOS
+# reads the legacy settings_fingerprint.xml; One UI writes _0.
+BIO_DST=$STAGE/data/system/users/0
+mkdir -p "$BIO_DST" || true
+rm -f "$BIO_DST/settings_fingerprint_0.xml"
+bio=0
+for f in settings_fingerprint_0.xml settings_face.xml face_enrolled_position_0.xml; do
+    out=$f
+    [ "$f" = settings_fingerprint_0.xml ] && out=settings_fingerprint.xml
+    if [ -f "/data/system/users/0/$f" ]; then
+        cp -f "/data/system/users/0/$f" "$BIO_DST/$out" &&
+            chown 1000:1000 "$BIO_DST/$out" 2>/dev/null &&
+            chmod 644 "$BIO_DST/$out" 2>/dev/null &&
+            $BB chcon -h u:object_r:system_data_file:s0 "$BIO_DST/$out" 2>/dev/null
+        bio=$((bio + 1))
+    else
+        # A print or face removed in One UI must not stay listed here.
+        rm -f "$BIO_DST/$out"
+    fi
+done
+[ "$bio" -gt 0 ] && echo "Guest biometrics: carried One UI's $bio enrollment file(s) into the guest"
+
 # OneOS: without OneLineage's LineageOS packages (Launcher3, LatinIME,
 # LineageSettings; ColorOS has none of them) and with the OneOS app in place
 # of the OneLineage switcher.
@@ -5515,7 +5541,19 @@ fi
 # about /system_ext/apex).
 if [ -d /system/apex ]; then
     mkdir -p "$ROOTFS/system/apex"
-    mount | grep -q "$ROOTFS/system/apex " || $BB mount --bind /system/apex "$ROOTFS/system/apex"
+    # Bound already only if the folder at that path IS One UI's. A mount there is not enough:
+    # guest root's copy of the system top level (kernels without overlayfs: the S22 series,
+    # S23 FE, A25, A33, A53) has the image's own apex folder mounted at this path, so the bind
+    # was left out and the guest's system_server died in its APEX scan on One UI's modules the
+    # image does not have ("Unable to parse: /system/apex/com.android.bt.apex": every switch
+    # with guest root on, A33 36686a70 and 7b1d653e, S22 Ultra 5172a6c3, 0.4.85 to 0.4.92).
+    if [ "$(stat -c %d:%i "$ROOTFS/system/apex" 2>/dev/null)" != "$(stat -c %d:%i /system/apex 2>/dev/null)" ]; then
+        if mount | grep -q "$ROOTFS/system/apex "; then
+            echo "Host APEX files: One UI's /system/apex bound over the image's own folder (guest root's copy of the system top level)"
+        fi
+        $BB mount --bind /system/apex "$ROOTFS/system/apex" ||
+            echo "!!! WARNING: One UI's /system/apex not bound on $ROOTFS/system/apex; PackageManagerService will fail on host apexes"
+    fi
 fi
 
 echo "=== 9. $(date +%T) Bind-mounting Remaining Non-Payload APEXes ==="

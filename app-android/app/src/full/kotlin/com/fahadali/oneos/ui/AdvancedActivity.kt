@@ -134,6 +134,13 @@ class AdvancedFragment : CardsFragment() {
         // Help.
         val help = Cards.section(column, getString(R.string.advanced_card_help), rows = true)
         Cards.row(help, OuiIcons.drawable.ic_oui_info_outline, getString(R.string.about_title), getString(R.string.advanced_about_summary), open(AboutActivity::class.java))
+        Cards.row(help, OuiIcons.drawable.ic_oui_fingerprint, getString(R.string.biometric_help_title), getString(R.string.biometric_help_summary)) {
+            AlertDialog.Builder(requireContext())
+                .setTitle(R.string.biometric_help_title)
+                .setMessage(R.string.biometric_help_message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
 
         // The technical screens, behind one entry.
         val team = Cards.section(column, title = null, rows = true)
