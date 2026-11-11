@@ -137,7 +137,13 @@ class AdvancedFragment : CardsFragment() {
         Cards.row(help, OuiIcons.drawable.ic_oui_fingerprint, getString(R.string.biometric_help_title), getString(R.string.biometric_help_summary)) {
             AlertDialog.Builder(requireContext())
                 .setTitle(R.string.biometric_help_title)
-                .setMessage(R.string.biometric_help_message)
+                .setMessage(
+                    listOf(
+                        R.string.biometric_help_intro,
+                        R.string.biometric_help_patch,
+                        R.string.biometric_help_troubleshooting,
+                    ).joinToString("\n\n") { getString(it) },
+                )
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
         }

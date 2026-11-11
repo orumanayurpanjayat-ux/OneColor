@@ -101,6 +101,26 @@ class SettingsPreferenceFragment : InsetPreferenceFragment() {
             })
         }
         val help = category(R.string.settings_help)
+        help.addDescribedPreference(Preference(ctx).apply {
+            key = "biometric_help"
+            setTitle(R.string.biometric_help_title)
+            setSummary(R.string.biometric_help_summary)
+            isIconSpaceReserved = true
+            setIcon(OuiIcons.drawable.ic_oui_fingerprint)
+            setOnPreferenceClickListener {
+                val message = listOf(
+                    R.string.biometric_help_intro,
+                    R.string.biometric_help_patch,
+                    R.string.biometric_help_troubleshooting,
+                ).joinToString("\n\n") { ctx.getString(it) }
+                AlertDialog.Builder(ctx)
+                    .setTitle(R.string.biometric_help_title)
+                    .setMessage(message)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
+                true
+            }
+        })
         row(help, R.string.about_title, target = AboutActivity::class.java)
         row(help, R.string.team_title, R.string.advanced_team_summary, target = DebugSettingsActivity::class.java)
         preferenceScreen.addBottomInset()
