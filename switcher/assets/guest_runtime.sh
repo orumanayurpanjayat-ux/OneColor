@@ -155,7 +155,7 @@ baseline)
     fi
     : > "$B/host-frameworks"
     for proc in /proc/[0-9]*; do
-        name=$(tr '\000' ' ' < "$proc/cmdline" 2>/dev/null || true)
+        name=$({ tr '\000' ' ' < "$proc/cmdline"; } 2>/dev/null || true)
         case "$name" in vectord|vectord' '*|lspd|lspd' '*|org.lsposed.lspd|org.lsposed.lspd' '*|org.matrix.vector.daemon|org.matrix.vector.daemon' '*)
             pid=${proc##*/}
             start=$(awk '{print $22}' "$proc/stat")
@@ -278,7 +278,8 @@ uninstall)
     # Installation/cleanup may invoke su before the normal guest daemon starts.
     "$A/oneos/bin/su" --daemon >> "$A/oneos/run/session.log" 2>&1 &
     bootstrap=$!
-    trap 'kill "$bootstrap" 2>/dev/null || true; wait "$bootstrap" 2>/dev/null || true' EXIT
+    echo "$bootstrap" > "$A/oneos/run/bootstrap.pid" || true
+    trap 'kill -KILL "$bootstrap" 2>/dev/null || true; wait "$bootstrap" 2>/dev/null || true; rm -f "$A/oneos/run/bootstrap.pid" 2>/dev/null || true' EXIT
     export ASH_STANDALONE=1 PATH=/system/bin:/system/xbin:/data/adb/ksu/bin
     for m in "$A/modules/"*; do
         [ -d "$m" ] && [ ! -L "$m" ] && [ -f "$m/remove" ] || continue
@@ -308,7 +309,7 @@ install)
     A=/data/adb
     /data/adb/oneos/bin/su --daemon >> "$A/oneos/run/session.log" 2>&1 &
     bootstrap=$!
-    trap 'kill "$bootstrap" 2>/dev/null || true; wait "$bootstrap" 2>/dev/null || true' EXIT
+    trap 'kill -KILL "$bootstrap" 2>/dev/null || true; wait "$bootstrap" 2>/dev/null || true' EXIT
     A=/data/adb
     export PATH=/system/bin:/system/xbin:/data/adb/ksu/bin
     export ASH_STANDALONE=1

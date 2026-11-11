@@ -239,6 +239,7 @@ profile_info() {
         s-8450) echo "SM-S901 r0q SM8450 bar" ;;
         m55s) echo "SM-M558 m55xq SM7450 bar" ;;
         s-plus-9945) echo "SM-S926 e2s s5e9945 bar" ;;
+        s-ultra-8550-jp) echo "SCG20 SCG20 SM8550 bar" ;;
         *) return 1 ;;
     esac
 }
@@ -408,6 +409,9 @@ profile_set() {
         "s-8550 originos7-pd2609ma") echo originos ;;
         "s-plus-8550 originos7-pd2609ma") echo originos ;;
         "s-ultra-8550 originos7-pd2609ma") echo originos ;;
+        "s-8550 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-plus-8550 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-ultra-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "a06 oxygenos16-cph2745") echo oxygen16 ;;
         "a07-5g oxygenos16-cph2745") echo oxygen16 ;;
         "a15 oxygenos16-cph2745") echo oxygen16 ;;
@@ -472,6 +476,12 @@ profile_set() {
         "s-plus-9945 hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-9945 nothingos5-metroid") echo nothing-f8u ;;
         "s-plus-9945 originos7-pd2609ma") echo originos ;;
+        "s-ultra-8550-jp coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-ultra-8550-jp pixel9proxl-komodo") echo pixel9-sultra ;;
+        "s-ultra-8550-jp infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8550-jp hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
+        "s-ultra-8550-jp originos7-pd2609ma") echo originos ;;
         *) return 1 ;;
     esac
 }
