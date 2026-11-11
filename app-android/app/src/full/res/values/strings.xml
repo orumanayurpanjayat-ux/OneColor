@@ -40,6 +40,9 @@
     <string name="home_details_all">All checks</string>
     <string name="menu_how">Before you start</string>
     <string name="menu_about">About OneOS</string>
+    <string name="menu_last_session">Last session</string>
+    <string name="menu_latest_logs">Latest session logs</string>
+    <string name="menu_phone_details">Phone details</string>
 
     <!-- Use a downloaded file: the texts that did not change (the rest: strings_advanced.xml) -->
     <string name="image_choice_title">%1$s image</string>

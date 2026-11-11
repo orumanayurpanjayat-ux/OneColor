@@ -105,6 +105,24 @@ internal object EditionHome {
             a.startActivity(Intent(a, AboutActivity::class.java))
             true
         }
+        R.id.menu_last_session -> {
+            a.startActivity(Intent(a, LastSessionActivity::class.java))
+            true
+        }
+        R.id.menu_latest_logs -> {
+            val zip = LogJob.latestZip(a)
+            val intent = if (zip != null) {
+                Intent(a, FindingsActivity::class.java).putExtra(FindingsActivity.EXTRA_ZIP, zip.path)
+            } else {
+                Intent(a, LastSessionActivity::class.java)
+            }
+            a.startActivity(intent)
+            true
+        }
+        R.id.menu_phone_details -> {
+            a.startActivity(Intent(a, DeviceReportActivity::class.java))
+            true
+        }
         else -> false
     }
 

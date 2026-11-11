@@ -419,7 +419,7 @@
     <string name="bring_change_data">One UI has newer data</string>
     <string name="bring_change_app">Updated on One UI since</string>
     <string name="bring_change_gone">No longer installed on One UI</string>
-    <string name="biometric_help_title">Fingerprint and face</string>
-    <string name="biometric_help_summary">How guest biometrics work and what to check</string>
-    <string name="biometric_help_message">OneOS can carry the fingerprint and face enrollment records from One UI into the guest. Your biometric templates stay inside the phone&apos;s secure hardware; OneOS does not copy them. The guest can use an enrollment that already exists in One UI, but adding a new fingerprint or face inside the guest is not supported by this local-PIN setup. If the sensor is missing, first check that the enrollment still exists in One UI, then update the guest system and its fixes. If it still fails, collect the session logs and send them to the OneOS team.</string>
+    <string name="biometric_help_title">Guest PIN and biometrics</string>
+    <string name="biometric_help_summary">Fingerprint, face unlock and how to refresh the guest PIN patch</string>
+    <string name="biometric_help_message">OneOS carries existing fingerprint and face enrollment metadata from One UI into the guest. Your biometric templates stay inside the phone&apos;s secure hardware; OneOS does not copy them. Enroll fingerprints or face in One UI first. Adding a new fingerprint or face inside the guest is not supported by this local-PIN setup.\n\nThe guest PIN verifier and Samsung AIDL v3 fingerprint adapter are kept in a patched services.jar in the guest data. OneOS uses that copy only while its SHA-256 stamp matches the current staged jar. After a fixes update, if the session log says the saved jar is stale or missing, connect the rooted phone to a computer and run scripts/install-pin-jar.sh from the OneColor checkout. It applies the AIDL fingerprint patch first, then the guest-local PIN patch.\n\nIf the sensor or PIN still fails, open the latest session logs from Home and share them with the OneOS team. Never share your PIN.</string>
 </resources>

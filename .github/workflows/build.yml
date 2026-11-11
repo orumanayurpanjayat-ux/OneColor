@@ -151,6 +151,7 @@ jobs:
           test -s app-android/packages/patch-sources.json
           test -s scripts/check-staging-apk.py
           test -s scripts/build-guest-manager.sh
+          test -s scripts/test-host-apex-bind.py
           test -s switcher/assets/oneos_switch.sh
           test -s switcher/assets/guest_runtime.sh
           test -s switcher/assets/OneOSBootStatus.dex
@@ -160,6 +161,9 @@ jobs:
 
           python3 --version
           java -version
+
+      - name: Test guest host-APEX bind regression
+        run: python3 scripts/test-host-apex-bind.py
 
       - name: Build and stage the required guest manager APK
         run: |

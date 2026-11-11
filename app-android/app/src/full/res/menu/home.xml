@@ -9,4 +9,16 @@
         android:id="@+id/menu_about"
         android:title="@string/menu_about"
         android:showAsAction="never" />
+    <item
+        android:id="@+id/menu_last_session"
+        android:title="@string/menu_last_session"
+        android:showAsAction="never" />
+    <item
+        android:id="@+id/menu_latest_logs"
+        android:title="@string/menu_latest_logs"
+        android:showAsAction="never" />
+    <item
+        android:id="@+id/menu_phone_details"
+        android:title="@string/menu_phone_details"
+        android:showAsAction="never" />
 </menu>
