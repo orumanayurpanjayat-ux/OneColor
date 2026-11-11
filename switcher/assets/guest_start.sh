@@ -1034,44 +1034,6 @@ if [ -f /data/guest_audio.flag ]; then
     else
         echo "[Pivoted Root] A2DP offload: l_a2dp_format not sent (ONEOS_GUEST_A2DP_FORMAT=0)"
     fi
-    # ColorOS's AOSP audio policy parser wants /vendor/etc/audio_policy_configuration.xml.
-    # Samsung's vendor only ships QTI's _base and sku files at other paths, so the
-    # parser fell back to setDefault: volume groups with max index 0, and SystemUI's
-    # volume slider crashes on NaN. The QTI _base file is the same format ColorOS
-    # loads; put it at the top-level path through a guest-only overlay (the f2fs
-    # upper is refused for casefold, so a small tmpfs holds the upper).
-    if [ -e /system/framework/oplus-services.jar ] && grep -rqs 'android.hardware.audio.core' /vendor/etc/vintf/ &&
-       [ -f /vendor/etc/audio_policy_configuration_base.xml ] && [ ! -e /vendor/etc/audio_policy_configuration.xml ]; then
-        AOV=/data/oneos_audio_policy
-        mkdir -p "$AOV"
-        mount | grep -q " $AOV " || $BB mount -t tmpfs -o size=8m,mode=755 tmpfs "$AOV"
-        mkdir -p "$AOV/upper" "$AOV/work"
-        cp /vendor/etc/audio_policy_configuration_base.xml "$AOV/upper/audio_policy_configuration.xml" &&
-            chmod 644 "$AOV/upper/audio_policy_configuration.xml" &&
-            $BB chcon u:object_r:vendor_configs_file:s0 "$AOV/upper/audio_policy_configuration.xml" 2>/dev/null || true
-        if $BB mount -t overlay overlay -o "lowerdir=/vendor/etc,upperdir=$AOV/upper,workdir=$AOV/work" /vendor/etc; then
-            echo "[Pivoted Root] ColorOS audio policy: _base.xml as /vendor/etc/audio_policy_configuration.xml (volume tables)"
-        else
-            echo "!!! WARNING: ColorOS audio policy: the overlay on /vendor/etc was refused; volume groups may be default"
-        fi
-    fi
-    # Samsung's audio HAL keeps the streams of a dead audioserver: a fresh one
-    # then gets -38 on every openOutputStream ("port config ... already has a
-    # stream opened"), AudioPolicyManager init fails and audio is silent until
-    # the HAL restarts. Restart it before the first audioserver and before each
-    # restart in the keeper below.
-    restart_audio_hal() {
-        service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found" || return 0
-        h=$(pidof audiohalservice.qti 2>/dev/null)
-        [ -n "$h" ] && kill -9 $h 2>/dev/null
-        i=0
-        while [ $i -lt 50 ]; do
-            service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found" && return 0
-            i=$((i + 1)); sleep 0.2
-        done
-        return 1
-    }
-    restart_audio_hal && echo "[Pivoted Root] audio HAL restarted before guest audioserver"
     /system/bin/audioserver > /dev/null 2>&1 &
     AS_PID=$!
     echo "[Pivoted Root] guest audioserver PID: $AS_PID (registers once the guest framework is up)"
@@ -1142,11 +1104,6 @@ if [ -f /data/guest_audio.flag ]; then
                 echo "$(date +%T) guest audioserver $why $((r + 1)) times within 2 minutes; restart in ${d}s (no hand-over)"
                 sleep $d
                 now=$(date +%s); last=$now
-            fi
-            if service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found"; then
-                h=$(pidof audiohalservice.qti 2>/dev/null); [ -n "$h" ] && kill -9 $h 2>/dev/null
-                i=0; while [ $i -lt 50 ]; do service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found" && break; i=$((i + 1)); sleep 0.2; done
-                echo "$(date +%T) audio HAL restarted before audioserver"
             fi
             /system/bin/audioserver > /dev/null 2>&1 & as=$!; miss=0; r=$((r + 1))
             echo "$(date +%T) guest audioserver $why, restarted as $as"
@@ -1733,15 +1690,12 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                 done
             fi
             [ -n "$ev" ] && [ -c /dev/input/$ev ] || { log "$t: no input device under $T/input"; continue; }
-            # What enabled reads while the IC is on: 1 on the newer drivers (on or off: Z
-            # Fold8 Ultra, S24, S25, the A series), 2 on the older ones, which show the power
-            # state (2 on, 1 low-power mode, 0 off: S22 Ultra, S23 series). The older ones
-            # were left out from 0.4.60 to build 115 for "no touch for the whole session"
-            # (0.4.59 reports 9dbcda58, 7b972a82, 2c9c6419); that was this keeper, see
-            # tsp_off below: it took the answer to 1,1 for a refusal after 1,0 had put the
-            # IC in low-power mode, and at that time did not switch it back on.
+            # Only the protocol measured on the Z Fold8 Ultra (stm): enabled reads 1 (on) or
+            # 0. Others differ: the synaptics driver of the S23s reads 2 and refused one of the
+            # writes, and its chip stayed in low-power mode with no touch for the whole
+            # session (0.4.59 reports 9dbcda58, 7b972a82, 2c9c6419). Left to the guest there.
             e0=$(cat $T/enabled 2>/dev/null)
-            case "$e0" in 0|1) eon=1 ;; 2) eon=2 ;; *) log "$t ($ev): enabled reads ${e0:-nothing}, not a known protocol: double tap left to the guest"; continue ;; esac
+            case "$e0" in 0|1) ;; *) log "$t ($ev): enabled reads ${e0:-nothing}, not the measured protocol: double tap left to the guest"; continue ;; esac
             # KEY_WAKEUP (143) among its keys: bit 15 of the third word from the end.
             set -- $(cat $I/capabilities/key 2>/dev/null)
             w=""; [ $# -ge 3 ] && eval w=\${$(($# - 2))}
@@ -1752,7 +1706,7 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                 *) C=/sys/class/drm/card0-DSI-1/dpms; B=/sys/class/backlight/panel0-backlight; [ -e $B/brightness ] || B=/sys/class/backlight/panel ;;
             esac
             [ -r $B/brightness ] || { log "$t ($ev): no backlight to follow ($B)"; continue; }
-            eval "EV_$t=$ev C_$t=$C B_$t=$B/brightness ON_$t=1 L_$t=1 GP_$t= EON_$t=$eon"
+            eval "EV_$t=$ev C_$t=$C B_$t=$B/brightness ON_$t=1 L_$t=1 GP_$t="
             IDS="$IDS $t"
             log "$t: $ev ($(cat $I/name 2>/dev/null)), panel $C=$(cat $C 2>/dev/null), $B=$(cat $B/brightness 2>/dev/null), enabled=$(cat $T/enabled 2>/dev/null)"
         done
@@ -1853,26 +1807,6 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
               done
               log "AOD: reader given up: no double tap on AOD this session" ) &
         fi
-        # Only two of the four writes do anything in the driver: 1,0 (the IC goes to
-        # low-power mode when a wake gesture is on in One UI, else off) and 2,1 (on).
-        # 1,1 and 2,0 are the other half of what One UI writes. The drivers up to the
-        # kernel 6.1 generation (S24 Exynos, S23 FE, A25, A34, A35; public sec_cmd
-        # sources: enabled_store ends in "if (ret) return ret" with ret still the 2 of
-        # its sscanf) answer those two with a short write; the shell writes the rest
-        # and that fails with "Invalid argument". Up to build 115 that error, after a
-        # 1,0 that had worked, was read as a refusal: the IC was switched back on and
-        # double tap given up for the session, in every session on those phones
-        # (reports of 0.4.83 to 0.4.85). Only the write that acts decides now; the
-        # other is still sent, as One UI does, and its answer is not read.
-        tsp_off() { echo 1,0 > $1/enabled || return 1; echo 1,1 > $1/enabled 2>/dev/null; return 0; }
-        tsp_on() { echo 2,0 > $1/enabled 2>/dev/null; echo 2,1 > $1/enabled; }
-        # enabled, and 2 once seen is what this IC reads while on (an older driver that
-        # was off or asleep at the first read).
-        tsp_read() {
-            e=$(cat /sys/class/sec/$1/enabled 2>/dev/null)
-            [ "$e" = 2 ] && eval EON_$1=2
-            eval eon=\$EON_$1
-        }
         arm() {
             eval g=\$GP_$1 no=\$NO_$1
             [ -z "$g" ] && [ -z "$no" ] || return 0
@@ -1880,8 +1814,7 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
             P=/data/oneos_dt2w_$1.fifo
             rm -f $P; $BB mkfifo $P || { log "$1: no fifo"; return; }
             getevent -l /dev/input/$ev > $P 2>/dev/null &
-            g=$!
-            eval GP_$1=$g
+            eval GP_$1=$!
             ( while read -r a k v; do
                   [ "$k" = KEY_WAKEUP ] && [ "$v" = DOWN ] || continue
                   if [ $LIDF = 1 ]; then
@@ -1894,29 +1827,17 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                   timeout 5 cmd input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || log "$1: cmd input keyevent failed"
                   setaod 0
               done < $P ) &
-            # 1,0 only counts once getevent holds the touchscreen: the driver closes only
-            # a device somebody has open, and the guest lets go of it when its panel goes
-            # off. Written before that open it does nothing, and the open then powers the
-            # IC fully on: plain touches all night, no double tap. getevent opens it after
-            # the reader above has opened the fifo, so a fixed wait can be too short.
-            i=0
-            while [ $i -lt 20 ]; do
-                sleep 0.05
-                ls -l /proc/$g/fd 2>/dev/null | grep -q "/dev/input/$ev\$" && break
-                i=$((i + 1))
-            done
-            [ $i -lt 20 ] || log "$1: getevent has not opened $ev after 1 s"
-            # The marker first: only a marked IC is ever put back on (here, by wake_tsp
-            # and by the return).
+            sleep 0.05
+            # The marker first: a chip that took the first write is in low-power mode,
+            # whatever the second answers, and only a marked one is ever put back on
+            # (here, by wake_tsp and by the return).
             : > /data/oneos_dt2w_armed.$1
-            if tsp_off $T; then
-                tsp_read $1
-                log "$1: $2: low-power mode (enabled=$e)"
+            if echo 1,0 > $T/enabled && echo 1,1 > $T/enabled; then
+                log "$1: $2: low-power mode (enabled=$(cat $T/enabled 2>/dev/null))"
             else
-                log "$1: panel off, but $T/enabled refused 1,0: back on, double tap left to the guest"
-                tsp_on $T
-                tsp_read $1
-                [ "$e" = "$eon" ] && rm -f /data/oneos_dt2w_armed.$1
+                log "$1: panel off, but $T/enabled refused 1,0/1,1: back on, double tap left to the guest"
+                echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
+                [ "$(cat $T/enabled 2>/dev/null)" = 1 ] && rm -f /data/oneos_dt2w_armed.$1
                 disarm $1
                 eval NO_$1=1
             fi
@@ -1930,9 +1851,9 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
         wake_tsp() {
             T=/sys/class/sec/$1
             [ -f /data/oneos_dt2w_armed.$1 ] || { disarm $1; return; }
-            tsp_on $T
-            tsp_read $1
-            [ "$e" = "$eon" ] || { sleep 0.2; tsp_on $T; tsp_read $1; }
+            echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
+            e=$(cat $T/enabled 2>/dev/null)
+            [ "$e" = 1 ] || { sleep 0.2; echo 2,0 > $T/enabled; echo 2,1 > $T/enabled; e=$(cat $T/enabled 2>/dev/null); }
             rm -f /data/oneos_dt2w_armed.$1
             disarm $1
             log "$1: $2: enabled=$e"
@@ -1949,24 +1870,21 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
             eval g=\$GP_$1 no=\$NO_$1
             [ -z "$no" ] || return 0
             if [ -n "$g" ]; then
-                tsp_on $T
-                if tsp_off $T; then
-                    tsp_read $1
-                    log "$1: $2: low-power mode again under folded=$F (enabled=$e)"
+                echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
+                if echo 1,0 > $T/enabled && echo 1,1 > $T/enabled; then
+                    log "$1: $2: low-power mode again under folded=$F (enabled=$(cat $T/enabled 2>/dev/null))"
                 else
-                    log "$1: $2: $T/enabled refused 1,0 under folded=$F: back on, double tap left to the guest"
-                    tsp_on $T
-                    tsp_read $1
-                    [ "$e" = "$eon" ] && rm -f /data/oneos_dt2w_armed.$1
+                    log "$1: $2: $T/enabled refused 1,0/1,1 under folded=$F: back on, double tap left to the guest"
+                    echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
+                    [ "$(cat $T/enabled 2>/dev/null)" = 1 ] && rm -f /data/oneos_dt2w_armed.$1
                     disarm $1
                     eval NO_$1=1
                 fi
                 return 0
             fi
             if [ "$(cat $T/enabled 2>/dev/null)" = 0 ]; then
-                tsp_on $T
-                tsp_read $1
-                log "$1: off before arming (folded=$F): switched on first (enabled=$e)"
+                echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
+                log "$1: off before arming (folded=$F): switched on first (enabled=$(cat $T/enabled 2>/dev/null))"
             fi
             arm $1 "$2"
         }
@@ -2055,16 +1973,12 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
 else
     echo "[Pivoted Root] Double tap to wake: left to the guest (ONEOS_GUEST_DT2W=$DT2W, getevent $(command -v getevent >/dev/null 2>&1 && echo yes || echo no))"
 fi
-# Android 17's WallpaperDataParser calls next() once for <description>. Its
+# Pixel 17's WallpaperDataParser calls next() once for <description>. Its
 # indented serializer writes whitespace there, so next() returns TEXT and the
-# saved component is skipped. WallpaperManagerService then has no static
-# imagery and clears the record, so a live or video wallpaper comes back as
-# ImageWallpaper after a boot. Remove only whitespace between XML elements,
+# saved component is skipped. Remove only whitespace between XML elements,
 # preserving every component, crop, colour, content value and wallpaper file.
-# Pixel 17 guests (pull request #1 found it on the Fold8) and ColorOS 17 guests
-# both ship this code; ColorOS logs ComponentInfo{/} then
-# "Unable to regenerate crop; resetting" and clearWallpaperLocked.
-if [ -f /data/system/users/0/wallpaper_info.xml ]; then
+# Every Pixel guest (pull request #1 found it on the Fold8; same Pixel 17 code).
+if [ -f /system_ext/priv-app/SystemUIGoogle/SystemUIGoogle.apk ]; then
     WREL=system/users/0/wallpaper_info.xml
     WFILE="/data/$WREL"
     if [ ! -L /data/system ] && [ ! -L /data/system/users ] && [ ! -L /data/system/users/0 ] &&
@@ -2078,17 +1992,17 @@ s/>[[:space:]]*</></g' "$WFILE" > "$WFILE.oneos-normalized" &&
             if ! cmp -s "$WFILE" "$WFILE.oneos-normalized"; then
                 if cp -p "$WFILE" "$WFILE.oneos-spacing-backup"; then
                     mv -f "$WFILE.oneos-normalized" "$WFILE"
-                    echo "Wallpaper: normalized description spacing; saved selection retained"
+                    echo "Pixel wallpaper: normalized description spacing; saved selection retained"
                 else
                     rm -f "$WFILE.oneos-normalized"
-                    echo "WARNING: wallpaper backup failed; original retained"
+                    echo "WARNING: Pixel wallpaper backup failed; original retained"
                 fi
             else
                 rm -f "$WFILE.oneos-normalized"
             fi
         else
             rm -f "$WFILE.oneos-normalized"
-            echo "WARNING: wallpaper normalization failed; original retained"
+            echo "WARNING: Pixel wallpaper normalization failed; original retained"
         fi
     fi
 fi
@@ -2572,91 +2486,6 @@ BRINGEOF
 else
     rm -f /data/oneos_bring_restore.sh
 fi
-# Samsung's One UI leaves lockscreen.disabled=1 behind even with a PIN; the
-# guest's copy would make ColorOS skip its keyguard. Clear it on the guest's
-# copy only, after the guest's own boot_completed (the shared flag is cleared
-# above). The marker is staged with the lock state.
-if [ -f /data/system/oneos_lockstate/enabled ]; then
-    (
-        n=0
-        while [ "$(getprop sys.boot_completed)" != 1 ]; do
-            n=$((n+1)); [ "$n" -lt 120 ] || exit 0; sleep 1
-        done
-        n=0
-        while [ "$(/system/bin/locksettings get-disabled --user 0 2>/dev/null)" != false ]; do
-            /system/bin/locksettings set-disabled false --user 0 >/dev/null 2>&1
-            n=$((n+1)); [ "$n" -lt 10 ] || break; sleep 1
-        done
-        if [ "$(/system/bin/locksettings get-disabled --user 0 2>/dev/null)" = false ]; then
-            echo "keyguard enabled"
-        else
-            echo "keyguard still disabled"
-        fi
-    ) > /data/system/oneos_lockstate/late.log 2>&1 &
-fi
-
-# OneOS: the fingerprint-wave SystemUI. scripts/install-systemui-wave.sh
-# builds the patched APK once per SystemUI build and leaves it in the guest's
-# /data/local/tmp; this bind must run before zygote starts, because zygote and
-# SystemUI unshare their own mount namespaces and would not see a later bind.
-# The image's oat/arm64 is for the stock dex checksum, so hide it as well.
-# Without the APK the stock SystemUI runs and nothing here changes the
-# keyguard.
-WAVE_APK=/data/local/tmp/SystemUI_wave.apk
-WAVE_SIZE=/data/local/tmp/SystemUI_wave.stock.size
-WAVE_SHA=/data/local/tmp/SystemUI_wave.stock.sha256
-WAVE_OAT=/data/local/tmp/empty_oat
-# Only ColorOS's SystemUI is the build this APK patches. A HyperOS, Pixel or
-# Infinity-X guest has its own SystemUI, and binding ColorOS's over it would
-# crash SystemUI at boot. The stock hash is the second fence: a ColorOS OTA
-# that changed SystemUI also skips the APK until install-systemui-wave.sh is
-# run again.
-if [ ! -e /system/framework/oplus-services.jar ]; then
-    echo "[Pivoted Root] SystemUI: guest is not ColorOS; stock SystemUI"
-    WAVE_APK=
-elif [ -f "$WAVE_APK" ] && [ -f "$WAVE_SIZE" ] && [ -f "$WAVE_SHA" ]; then
-    wave_want=$(cat "$WAVE_SIZE" 2>/dev/null)
-    wave_sha=$(cat "$WAVE_SHA" 2>/dev/null)
-    wave_got=$($BB stat -c %s /system/system_ext/priv-app/SystemUI/SystemUI.apk 2>/dev/null)
-    wave_hash=$($BB sha256sum /system/system_ext/priv-app/SystemUI/SystemUI.apk 2>/dev/null | awk '{print $1}')
-    if [ "$wave_want" != "$wave_got" ] || [ "$wave_sha" != "$wave_hash" ]; then
-        echo "[Pivoted Root] SystemUI: wave APK is for another SystemUI build; stock SystemUI"
-        WAVE_APK=
-    fi
-else
-    if [ -f "$WAVE_APK" ]; then
-        echo "[Pivoted Root] SystemUI: wave APK has no stock hash; stock SystemUI"
-    fi
-    WAVE_APK=
-fi
-if [ -f "$WAVE_APK" ]; then
-    mkdir -p "$WAVE_OAT"
-    chmod 644 "$WAVE_APK" 2>/dev/null || true
-    $BB chcon u:object_r:system_file:s0 "$WAVE_APK" 2>/dev/null || true
-    if [ -d /system/system_ext/priv-app/SystemUI/oat/arm64 ]; then
-        $BB mount -o bind "$WAVE_OAT" /system/system_ext/priv-app/SystemUI/oat/arm64 2>/dev/null || true
-    fi
-    if $BB mount -o bind "$WAVE_APK" /system/system_ext/priv-app/SystemUI/SystemUI.apk 2>/dev/null; then
-        echo "[Pivoted Root] SystemUI: fingerprint wave APK bound"
-        # SurfaceFlinger thrashes 10 Hz <-> 120 Hz during the wave without a
-        # floor; the setting lives in the guest's data and resets on boot.
-        (
-            n=0
-            while [ "$(getprop sys.boot_completed)" != 1 ] && [ "$n" -lt 120 ]; do
-                n=$((n + 1)); sleep 1
-            done
-            settings put system min_refresh_rate 120 >/dev/null 2>&1 || true
-            n=0
-            while [ "$(settings get system min_refresh_rate 2>/dev/null)" != 120 ] && [ "$n" -lt 30 ]; do
-                n=$((n + 1)); sleep 1
-                settings put system min_refresh_rate 120 >/dev/null 2>&1 || true
-            done
-        ) >/dev/null 2>&1 &
-    else
-        echo "[Pivoted Root] SystemUI: fingerprint wave bind failed; stock SystemUI"
-    fi
-fi
-
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
 if [ -f /data/oneos_root/enabled ]; then
     /system/bin/sh /data/oneos_runtime.sh pre || exit 3
