@@ -409,6 +409,7 @@ profile_set() {
         "s-8550 originos7-pd2609ma") echo originos ;;
         "s-plus-8550 originos7-pd2609ma") echo originos ;;
         "s-ultra-8550 originos7-pd2609ma") echo originos ;;
+        # 0.4.91: OxygenOS 16 for the S23s still on One UI 8.0/8.5 (the owner, 2026-11-11), untested there.
         "s-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-plus-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550 oxygenos16-cph2745") echo oxygen16 ;;
@@ -476,6 +477,7 @@ profile_set() {
         "s-plus-9945 hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-9945 nothingos5-metroid") echo nothing-f8u ;;
         "s-plus-9945 originos7-pd2609ma") echo originos ;;
+        # 0.4.92: the au Galaxy S23 Ultra (SCG20): the S23 Ultra's rows, untested.
         "s-ultra-8550-jp coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-ultra-8550-jp pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-ultra-8550-jp infinityx41-findx9u") echo infinityx ;;
