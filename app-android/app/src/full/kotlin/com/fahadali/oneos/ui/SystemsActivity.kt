@@ -220,10 +220,11 @@ class SystemsFragment : Fragment() {
                     val selected = snapHelper?.findSnapView(layout)?.let(layout::getPosition)
                     if (selected != null && currentEntries.isNotEmpty()) currentEntries[selected % currentEntries.size].image?.let { CarouselSelection.remember(rv.context, it) }
                     if (selected != null && selected != swipeStart) {
-                        // Use the public Android feedback constant: the SESL reflector is
-                        // restricted to Samsung's library group and cannot be called by the app.
-                        val accepted = rv.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
-                        if (com.fahadali.oneos.BuildConfig.DEBUG) android.util.Log.d("OneOSCarousel", "Settled card tick: $selected accepted=$accepted")
+                        val samsungTick = if (androidx.reflect.DeviceInfo.isOneUI())
+                            androidx.reflect.view.SeslHapticFeedbackConstantsReflector.semGetVibrationIndex(41) else -1
+                        val accepted = if (samsungTick >= 0 && rv.performHapticFeedback(samsungTick)) true
+                            else rv.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                        if (com.fahadali.oneos.BuildConfig.DEBUG) android.util.Log.d("OneOSCarousel", "Settled card tick: $selected accepted=$accepted samsung=$samsungTick")
                     }
                     swiping = false
                 }

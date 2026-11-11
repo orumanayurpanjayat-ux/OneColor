@@ -259,18 +259,7 @@ object AppUpdater : BackgroundJob<AppUpdater.State>(State(), "oneos-update") {
         c.instanceFollowRedirects = true
         try {
             if (c.responseCode != HttpURLConnection.HTTP_OK) throw IOException("HTTP ${c.responseCode}")
-            return c.inputStream.use { input ->
-                // readNBytes() is only available from API 33; OneOS supports API 31.
-                // Keep the same 4097-byte response cap without loading an unbounded body.
-                val bytes = ByteArray(4097)
-                var count = 0
-                while (count < bytes.size) {
-                    val read = input.read(bytes, count, bytes.size - count)
-                    if (read < 0) break
-                    count += read
-                }
-                bytes.copyOf(count).toString(Charsets.UTF_8)
-            }
+            return c.inputStream.use { it.readNBytes(4097) }.toString(Charsets.UTF_8)
         } finally {
             c.disconnect()
         }

@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Home's overflow menu (full edition). -->
-<menu xmlns:android="http://schemas.android.com/apk/res/android">
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
         android:id="@+id/menu_how"
         android:title="@string/menu_how"
-        android:showAsAction="never" />
+        app:showAsAction="never" />
     <item
         android:id="@+id/menu_about"
         android:title="@string/menu_about"
-        android:showAsAction="never" />
+        app:showAsAction="never" />
 </menu>
