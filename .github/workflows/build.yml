@@ -1,5 +1,5 @@
 
-name: Build OneOS Full APK
+name: Build OneOS APK
 
 run-name: OneOS Full APK — ${{ github.ref_name }}
 
