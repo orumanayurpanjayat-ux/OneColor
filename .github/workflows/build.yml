@@ -242,6 +242,8 @@ jobs:
 
       - name: Upload build diagnostics
         if: always()
+        continue-on-error: true
+        timeout-minutes: 2
         uses: actions/upload-artifact@v7
         with:
           name: OneOS-build-reports-${{ github.run_id }}
