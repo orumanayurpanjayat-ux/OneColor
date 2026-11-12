@@ -12,6 +12,18 @@ class PackageSetsTest {
     private val pixel = PackageSets.PIXEL_F8U
     private val xin = PackageSets.X9U_IN_SULTRA
 
+    // These wave files are in the source set model but are not yet published
+    // or pinned in the X9U SHA manifest. The set must stay fail-closed until
+    // both release assets and their real SHA-256 hashes are available.
+    private val unpublishedX9uWavePayloads = setOf("SystemUI_wave.dex", "OneOSWaveRepack.dex")
+
+    private fun unpublishedWaveErrors(set: PackageSet): List<String> =
+        if (set.id == PackageSets.ID_X9U_IN_SULTRA) {
+            unpublishedX9uWavePayloads.map { "${set.id}: $it missing" }.sorted()
+        } else {
+            emptyList()
+        }
+
     /** sha256sum of out/overlays_n6g_r3, out/overlays_x9u_r51, out/overlays_x9u_in_r53 (2026-11-03) and out/overlays_pixel_f8u_r2 without the omitted files. */
     private fun shas(set: PackageSet) = Bundles.text("packages/${set.id}.sha256")
 
@@ -182,7 +194,10 @@ class PackageSetsTest {
         }
         // The IN build's set (0.4.11; 0.4.51 the only Find X9 Ultra build): the Find N6 set's files but the
         // fold's (the wallpaper grid, the Fold8 SystemUI and its hinge relay), with its own guest vold as gvld.
-        assertEquals((n6.names - PackageSets.WALLPAPER_GRID_RRO - "Fold8SystemUI.apk" - "Fold8AngleRelay.dex").toSet(), xin.names.toSet())
+        assertEquals(
+            ((n6.names - PackageSets.WALLPAPER_GRID_RRO - "Fold8SystemUI.apk" - "Fold8AngleRelay.dex") + unpublishedX9uWavePayloads).toSet(),
+            xin.names.toSet(),
+        )
         // 0.4.47: the global builds' Theme Store without its brand check, the same file in both sets.
         assertEquals(ShaList.parse(shas(n6)).entries[PackageSets.THEME_STORE_APK], ShaList.parse(shas(xin)).entries[PackageSets.THEME_STORE_APK])
         assertEquals(FileRole.GUEST_FIX, n6.file(PackageSets.THEME_STORE_APK)?.role)
@@ -265,7 +280,9 @@ class PackageSetsTest {
 
     @Test
     fun shaListsNameExactlyTheSetsFiles() {
-        for (s in PackageSets.ALL) assertEquals(s.id, emptyList<String>(), s.check(shas(s)))
+        for (s in PackageSets.ALL) {
+            assertEquals(s.id, unpublishedWaveErrors(s), s.check(shas(s)).sorted())
+        }
         // The Pixel list and a ColorOS one are not interchangeable.
         val pixelOnN6 = pixel.check(shas(n6))
         assertTrue(pixelOnN6.contains("pixel-f8u: oneos-telephony.jar missing"))
@@ -357,7 +374,11 @@ class PackageSetsTest {
         }
     }
 
-    /** B2's checked-in lists (app-android/packages), when they exist, name exactly these sets. */
+    /**
+     * Checked-in manifests name published files. The two X9U wave payloads
+     * are deliberately pending: without published release assets and hashes,
+     * the package-set check must continue to refuse the X9U set.
+     */
     @Test
     fun checkedInPackageListsMatchTheSets() {
         val dir = System.getProperty("oneos.packagesDir")?.let(::File)
@@ -365,7 +386,7 @@ class PackageSetsTest {
         for (s in PackageSets.ALL) {
             val f = File(dir, "${s.id}.sha256")
             assumeTrue("${f.name} not there yet", f.isFile)
-            assertEquals(s.id, emptyList<String>(), s.check(f.readText()))
+            assertEquals(s.id, unpublishedWaveErrors(s), s.check(f.readText()).sorted())
         }
         // The IN sets' lists are gone with the image (0.3.7).
         assertEquals(PackageSets.ALL.map { "${it.id}.sha256" }.toSet(), dir!!.list()!!.filter { it.endsWith(".sha256") }.toSet())
