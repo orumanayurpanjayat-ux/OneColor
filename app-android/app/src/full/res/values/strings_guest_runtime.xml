@@ -4,6 +4,21 @@
     <string name="guest_modules_title">Manage guest modules</string>
     <string name="guest_modules_import">Import module</string>
     <string name="guest_modules_working">Working…</string>
+    <string name="guest_modules_actions">Module actions</string>
+    <plurals name="guest_modules_actions_count">
+        <item quantity="one">%1$d available action</item>
+        <item quantity="other">%1$d available actions</item>
+    </plurals>
+    <string name="guest_modules_reading">Reading guest modules…</string>
+    <string name="guest_modules_load_error">Couldn’t read guest modules</string>
+    <string name="guest_modules_retry">Try again</string>
+    <string name="guest_modules_retrying">Reading again…</string>
+    <string name="guest_modules_retry_summary">Read this guest’s module list again</string>
+    <string name="guest_modules_empty">No guest modules yet</string>
+    <string name="guest_modules_empty_summary">Import a module ZIP to add it to this system.</string>
+    <string name="guest_modules_needs_update">Update this system on the pre-boot page to add guest module support.</string>
+    <string name="guest_modules_status_pending">Staged for next guest restart</string>
+    <string name="guest_modules_status_removal">Uninstall pending · Next guest restart</string>
     <string name="guest_root_shared_kernel_title">Guest root has access to the whole phone</string>
     <string name="guest_root_shared_kernel_summary">Root granted in the guest is root on this phone’s shared kernel. Separate app permissions, modules and Xposed state do not fully isolate privileged code from One UI.</string>
 </resources>

@@ -1,6 +1,7 @@
 package com.fahadali.oneos.ui
 
 import android.os.Bundle
+import android.net.Uri
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -11,6 +12,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.widget.NestedScrollView
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.GuestModuleBundle
+import com.fahadali.oneos.core.model.GuestModuleChangeStatus
+import com.fahadali.oneos.core.model.GuestModuleControls
 import com.fahadali.oneos.core.root.RootScript
 import com.fahadali.oneos.core.root.RootShell
 import com.fahadali.oneos.session.GuestRuntimeStore
@@ -27,8 +30,27 @@ class GuestRuntimeActivity : EdgeToEdgeActivity() {
     private var busy = false
     private var loaded = false
     private var importFramework = false
+    private var pendingModuleUri: Uri? = null
     private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null && !busy) importModule { com.fahadali.oneos.shared.ModuleUpdates.copyDocument(this,uri) }
+        if (uri != null) importPickedModule(uri)
+    }
+    private fun importPickedModule(uri: Uri) {
+        if (busy) {
+            pendingModuleUri = uri
+            return
+        }
+        importModule { com.fahadali.oneos.shared.ModuleUpdates.copyDocument(this, uri) }
+    }
+
+    private fun importPendingModuleIfReady() {
+        val uri = pendingModuleUri ?: return
+        if (busy || !loaded || state.error != null) return
+        pendingModuleUri = null
+        if (!state.ready) {
+            showError(getString(R.string.guest_modules_needs_update))
+            return
+        }
+        importPickedModule(uri)
     }
     private fun importModule(source: () -> File) {
             busy = true; render()
@@ -96,6 +118,10 @@ class GuestRuntimeActivity : EdgeToEdgeActivity() {
     }
     override fun onResume() {
         super.onResume()
+        refreshModules()
+    }
+
+    private fun refreshModules() {
         if (!::state.isInitialized || busy) return
         busy = true; render()
         GuestRuntimeStore.refresh(this, image) { next ->
@@ -103,10 +129,10 @@ class GuestRuntimeActivity : EdgeToEdgeActivity() {
             busy = false; loaded = true
             state = if (next.error == null) next else state.copy(error = next.error)
             render()
-            if (importFramework && state.ready) {
+            if (importFramework && state.error == null && state.ready) {
                 importFramework = false
                 picker.launch(arrayOf("application/zip", "application/octet-stream", "application/x-zip-compressed"))
-            }
+            } else importPendingModuleIfReady()
         }
     }
     override fun onDestroy() { io.shutdown(); super.onDestroy() }
@@ -115,29 +141,44 @@ class GuestRuntimeActivity : EdgeToEdgeActivity() {
         val list = findViewById<LinearLayout>(R.id.guest_modules_list)
         list.removeAllViews()
         when {
-            !loaded -> empty(list, "Reading guest modules…", null)
-            state.error != null -> empty(list, "Couldn’t read guest modules", state.error)
-            state.modules.isEmpty() -> empty(list, "No guest modules yet", if (state.ready)
-                "Import a module ZIP to add it to this system." else "Update this system on the pre-boot page to add guest module support.")
+            !loaded -> empty(list, getString(R.string.guest_modules_reading), null)
+            state.error != null -> empty(list, getString(R.string.guest_modules_load_error), state.error, retry = true)
+            state.modules.isEmpty() -> empty(list, getString(R.string.guest_modules_empty), getString(
+                if (state.ready) R.string.guest_modules_empty_summary else R.string.guest_modules_needs_update,
+            ))
             else -> state.modules.forEach { module ->
+                val options = moduleOptions(module)
                 com.fahadali.oneos.shared.ModuleCards.add(list, module.name, module.description,
-                    module.enabled, !busy && state.ready, getColor(R.color.preboot_card),
+                    module.enabled, GuestModuleControls.canManage(state.ready, busy, state.error != null), getColor(R.color.preboot_card),
                     version = module.version.ifBlank { module.versionCode.takeIf { it > 0 }?.toString().orEmpty() }, author = module.author,
-                    status = if(module.removing) "Uninstall pending · Next guest restart" else if(module.pending) "Staged for next guest restart" else null,
-                    toggleEnabled = !module.removing && (module.framework == null || module.id == state.selected),
-                    options = moduleOptions(module)) { value ->
+                    status = when (GuestModuleControls.changeStatus(module.pending, module.removing)) {
+                        GuestModuleChangeStatus.CURRENT -> null
+                        GuestModuleChangeStatus.PENDING_RESTART -> getString(R.string.guest_modules_status_pending)
+                        GuestModuleChangeStatus.REMOVAL_PENDING_RESTART -> getString(R.string.guest_modules_status_removal)
+                    },
+                    toggleEnabled = GuestModuleControls.canToggle(
+                        ready = state.ready,
+                        busy = busy,
+                        removing = module.removing,
+                        frameworkSelected = module.framework == null || module.id == state.selected,
+                        hasError = state.error != null,
+                    ),
+                    manageTitle = getString(R.string.guest_modules_actions),
+                    manageSummary = resources.getQuantityString(R.plurals.guest_modules_actions_count, options.size, options.size),
+                    options = options) { value ->
                     busy = true; render()
                     GuestRuntimeStore.setModule(this, image, module.id, value) { next ->
                         if (isDestroyed) return@setModule
                         busy = false
-                        if (next.error != null) showError(next.error) else state = next
+                        state = next
+                        if (next.error != null) showError(next.error)
                         render()
                     }
                 }
             }
         }
         findViewById<Button>(R.id.guest_modules_import).apply {
-            isEnabled = loaded && state.ready && !busy
+            isEnabled = GuestModuleControls.canManage(state.ready, busy, state.error != null) && loaded
             setText(if (busy) R.string.guest_modules_working else R.string.guest_modules_import)
             contentDescription = getString(if (busy) R.string.guest_modules_working else R.string.guest_modules_import)
         }
@@ -157,13 +198,24 @@ class GuestRuntimeActivity : EdgeToEdgeActivity() {
                 .setNegativeButton(android.R.string.cancel,null).setPositiveButton(android.R.string.ok) { _,_ ->
                     busy=true; render()
                     GuestRuntimeStore.changeModule(this@GuestRuntimeActivity,image,module.id,if(module.removing) "restore" else "remove") { next ->
-                        busy=false; if(next.error != null) showError(next.error) else state=next; render()
+                        busy=false
+                        state=next
+                        if(next.error != null) showError(next.error)
+                        render()
                     }
                 }.show()
         })
     }
-    private fun empty(list: LinearLayout, title: String, line: String?) {
-        PrebootCards.row(PrebootCards.section(list, gap = false), title, line)
+    private fun empty(list: LinearLayout, title: String, line: String?, retry: Boolean = false) {
+        val card = PrebootCards.section(list, gap = false)
+        PrebootCards.row(card, title, line)
+        if (retry) PrebootCards.row(
+            card,
+            getString(if (busy) R.string.guest_modules_retrying else R.string.guest_modules_retry),
+            getString(R.string.guest_modules_retry_summary),
+            chevron = true,
+            enabled = !busy,
+        ) { refreshModules() }
     }
     private fun showError(message: String) {
         AlertDialog.Builder(this).setTitle("Guest modules").setMessage(message).setPositiveButton(android.R.string.ok, null).show()

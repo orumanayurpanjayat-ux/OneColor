@@ -12,6 +12,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.widget.NestedScrollView
 import com.fahadali.oneos.core.model.GuestModuleBundle
+import com.fahadali.oneos.core.model.GuestModuleChangeStatus
+import com.fahadali.oneos.core.model.GuestModuleControls
 import com.fahadali.oneos.shared.ModuleCards
 import com.fahadali.oneos.shared.NativeCards
 import dev.oneuiproject.oneui.layout.ToolbarLayout
@@ -22,6 +24,7 @@ import java.io.File
 class GuestModulesActivity : AppCompatActivity() {
     private var state = GuestRuntime.State()
     private var busy = false
+    private var loaded = false
     private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null && !busy) importModule { com.fahadali.oneos.shared.ModuleUpdates.copyDocument(this,uri) }
     }
@@ -70,35 +73,89 @@ class GuestModulesActivity : AppCompatActivity() {
         }
         render()
     }
-    override fun onResume() { super.onResume(); if (!busy) { busy=true; GuestRuntime.refresh(this) { next -> if (!isDestroyed) { state=next; busy=false; render() } } } }
+    override fun onResume() { super.onResume(); refreshModules() }
+    private fun refreshModules() {
+        if (busy) return
+        val previous = state
+        busy = true
+        render()
+        GuestRuntime.refresh(this) { next ->
+            if (!isDestroyed) {
+                state = if (next.error == null) next else previous.copy(error = next.error)
+                loaded = true
+                busy = false
+                render()
+            }
+        }
+    }
     private fun finishChange(next: GuestRuntime.State, message: String) {
         if (isDestroyed) return
         busy=false
-        if (next.error == null) { state=next; Toast.makeText(this,message,Toast.LENGTH_LONG).show() }
+        state = if (next.error == null) next else state.copy(error = next.error)
+        if (next.error == null) Toast.makeText(this,message,Toast.LENGTH_LONG).show()
         else AlertDialog.Builder(this).setTitle("Guest modules").setMessage(next.error).setPositiveButton(android.R.string.ok,null).show()
         render()
     }
     private fun render() {
         val list=findViewById<LinearLayout>(R.id.guest_modules_list); list.removeAllViews()
-        if (state.modules.isEmpty()) {
-            NativeCards.row(NativeCards.section(list,null,getColor(R.color.preboot_card)),
-                if (busy) "Reading guest modules…" else if (state.error != null) "Guest runtime unavailable" else "No guest modules yet",
-                state.error ?: "Import a module ZIP to stage it for the next guest boot.")
-        } else for (module in state.modules) {
-            ModuleCards.add(list,module.name,module.description,
-                module.enabled,!busy && state.root,getColor(R.color.preboot_card),
-                version = module.version.ifBlank { module.versionCode.takeIf { it > 0 }?.toString().orEmpty() }, author = module.author,
-                status = if(module.removing) "Uninstall pending · Next guest restart" else if(module.pending) "Staged for next guest restart" else null,
-                toggleEnabled = !module.removing && (!module.framework || module.id == state.selected),
-                options = moduleOptions(module)) { enabled ->
-                busy=true; render()
-                GuestRuntime.work({ GuestRuntime.control("toggle",module.id,if(enabled) "on" else "off"); GuestRuntime.read(applicationContext) }) {
-                    finishChange(it,"Change saved for the next guest boot")
+        when {
+            !loaded -> NativeCards.row(
+                NativeCards.section(list, null, getColor(R.color.preboot_card)),
+                getString(R.string.guest_modules_reading),
+                getString(R.string.guest_modules_retry_summary),
+            )
+            state.error != null -> {
+                val errorCard = NativeCards.section(list, null, getColor(R.color.preboot_card))
+                NativeCards.row(errorCard, getString(R.string.guest_modules_load_error), state.error)
+                NativeCards.row(
+                    errorCard,
+                    getString(if (busy) R.string.guest_modules_retrying else R.string.guest_modules_retry),
+                    getString(R.string.guest_modules_retry_summary),
+                    click = { refreshModules() },
+                ).isEnabled = !busy
+            }
+            else -> {
+                if (!state.root) NativeCards.row(
+                    NativeCards.section(list, null, getColor(R.color.preboot_card)),
+                    getString(R.string.guest_modules_root_off),
+                    getString(R.string.guest_modules_root_off_summary),
+                )
+                if (state.modules.isEmpty()) NativeCards.row(
+                    NativeCards.section(list, null, getColor(R.color.preboot_card)),
+                    getString(R.string.guest_modules_empty),
+                    getString(R.string.guest_modules_empty_summary),
+                ) else for (module in state.modules) {
+                    val options = moduleOptions(module)
+                    ModuleCards.add(list,module.name,module.description,
+                        module.enabled,GuestModuleControls.canManage(state.root,busy,state.error != null),getColor(R.color.preboot_card),
+                        version = module.version.ifBlank { module.versionCode.takeIf { it > 0 }?.toString().orEmpty() }, author = module.author,
+                        status = when (GuestModuleControls.changeStatus(module.pending, module.removing)) {
+                            GuestModuleChangeStatus.CURRENT -> null
+                            GuestModuleChangeStatus.PENDING_RESTART -> getString(R.string.guest_modules_status_pending)
+                            GuestModuleChangeStatus.REMOVAL_PENDING_RESTART -> getString(R.string.guest_modules_status_removal)
+                        },
+                        toggleEnabled = GuestModuleControls.canToggle(
+                            ready = state.root,
+                            busy = busy,
+                            removing = module.removing,
+                            frameworkSelected = !module.framework || module.id == state.selected,
+                            hasError = state.error != null,
+                        ),
+                        manageTitle = getString(R.string.guest_modules_actions),
+                        manageSummary = resources.getQuantityString(R.plurals.guest_modules_actions_count, options.size, options.size),
+                        options = options) { enabled ->
+                        busy=true; render()
+                        GuestRuntime.work({ GuestRuntime.control("toggle",module.id,if(enabled) "on" else "off"); GuestRuntime.read(applicationContext) }) {
+                            finishChange(it,"Change saved for the next guest boot")
+                        }
+                    }
                 }
             }
         }
-        if(state.root) NativeCards.row(NativeCards.section(list,null,getColor(R.color.preboot_card)),"Restart guest","Apply pending module changes without returning to One UI") { GuestRestart.confirm(this) }.isEnabled=!busy
-        findViewById<Button>(R.id.guest_modules_import).isEnabled=state.root && !busy
+        if (GuestModuleControls.canManage(state.root, busy, state.error != null)) {
+            NativeCards.row(NativeCards.section(list,null,getColor(R.color.preboot_card)),"Restart guest","Apply pending module changes without returning to One UI") { GuestRestart.confirm(this) }.isEnabled=!busy
+        }
+        findViewById<Button>(R.id.guest_modules_import).isEnabled=loaded && GuestModuleControls.canManage(state.root, busy, state.error != null)
     }
     private fun moduleOptions(module: GuestRuntime.Module): List<Pair<String, () -> Unit>> = buildList {
         if ("webui" in module.capabilities && !module.pending && !module.removing) add("Open WebUI" to {

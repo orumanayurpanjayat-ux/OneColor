@@ -3,19 +3,38 @@ package com.fahadali.oneos.shared
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
+import android.content.Context
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.widget.PopupMenu
+import dev.oneuiproject.oneui.widget.CardItemView
 import dev.oneuiproject.oneui.widget.RoundedLinearLayout
 import dev.oneuiproject.oneui.widget.SwitchItemView
 
 /** Shared SESL card: compact information, independent switch and long-press actions. */
 object ModuleCards {
+    private fun showOptions(ctx: Context, anchor: View, options: List<Pair<String, () -> Unit>>) {
+        PopupMenu(ctx, anchor, Gravity.END).apply {
+            options.forEachIndexed { index, option ->
+                val label = if (option.first.startsWith("Uninstall")) {
+                    val value = android.util.TypedValue()
+                    ctx.theme.resolveAttribute(android.R.attr.colorError, value, true)
+                    SpannableString(option.first).apply {
+                        setSpan(ForegroundColorSpan(value.data), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                } else option.first
+                menu.add(0, index, index, label)
+            }
+            setOnMenuItemClickListener { item -> options[item.itemId].second(); true }
+        }.show()
+    }
+
     fun add(parent: LinearLayout, name: String, description: String?, checked: Boolean,
         enabled: Boolean, color: Int, version: String = "", author: String = "", status: String? = null,
-        toggleEnabled: Boolean = true, options: List<Pair<String, () -> Unit>> = emptyList(),
+        toggleEnabled: Boolean = true, manageTitle: String = "Module actions", manageSummary: String = "",
+        options: List<Pair<String, () -> Unit>> = emptyList(),
         onToggle: (Boolean) -> Unit): View {
         val ctx=parent.context
         fun dp(n:Int)=(n*ctx.resources.displayMetrics.density+.5f).toInt()
@@ -45,23 +64,28 @@ object ModuleCards {
             content.setOnClickListener { }
             if(options.isNotEmpty()) content.setOnLongClickListener { anchor ->
                 if(!enabled) return@setOnLongClickListener false
-                PopupMenu(ctx,anchor,Gravity.END).apply {
-                    options.forEachIndexed { index,option ->
-                        val label=if(option.first.startsWith("Uninstall")) {
-                            val value=android.util.TypedValue()
-                            ctx.theme.resolveAttribute(android.R.attr.colorError,value,true)
-                            SpannableString(option.first).apply { setSpan(ForegroundColorSpan(value.data),0,length,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
-                        } else option.first
-                        menu.add(0,index,index,label)
-                    }
-                    setOnMenuItemClickListener { item -> options[item.itemId].second();true }
-                    show()
-                }
+                showOptions(ctx, anchor, options)
                 true
             }
             onCheckedChangedListener={ _,value -> onToggle(value) }
         }
         card.addView(row,LinearLayout.LayoutParams(-1,-2))
+        if (options.isNotEmpty()) {
+            card.addView(CardItemView(ctx).apply {
+                title = manageTitle
+                summary = manageSummary
+                minimumHeight = dp(72)
+                showTopDivider = true
+                isEnabled = enabled
+                getTitleView().textSize = 16f
+                getSummaryView().apply { textSize = 14f; maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
+                getEndImageView()?.apply {
+                    setImageResource(dev.oneuiproject.oneui.R.drawable.ic_oui_keyboard_arrow_right)
+                    visibility = View.VISIBLE
+                }
+                setOnClickListener { if (enabled) showOptions(ctx, this, options) }
+            }, LinearLayout.LayoutParams(-1,-2))
+        }
         return row
     }
 }

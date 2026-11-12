@@ -3,6 +3,22 @@
      system: %1$s in title_in is the guest image's own name (GuestName). -->
 <resources>
     <string name="app_name">OneOS</string>
+    <string name="guest_modules_actions">Module actions</string>
+    <plurals name="guest_modules_actions_count">
+        <item quantity="one">%1$d available action</item>
+        <item quantity="other">%1$d available actions</item>
+    </plurals>
+    <string name="guest_modules_reading">Reading guest modules…</string>
+    <string name="guest_modules_load_error">Couldn’t read guest modules</string>
+    <string name="guest_modules_retry">Try again</string>
+    <string name="guest_modules_retrying">Reading again…</string>
+    <string name="guest_modules_retry_summary">Read this guest’s module list again</string>
+    <string name="guest_modules_root_off">Guest root is off</string>
+    <string name="guest_modules_root_off_summary">Turn on guest root in OneOS to import or change modules.</string>
+    <string name="guest_modules_empty">No guest modules yet</string>
+    <string name="guest_modules_empty_summary">Import a module ZIP to stage it for the next guest boot.</string>
+    <string name="guest_modules_status_pending">Staged for next guest restart</string>
+    <string name="guest_modules_status_removal">Uninstall pending · Next guest restart</string>
 
     <string name="title_in">You\'re in %1$s</string>
     <!-- No friendly name in the guest's own build.prop files. -->
