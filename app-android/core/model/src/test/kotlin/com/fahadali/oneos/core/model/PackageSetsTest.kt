@@ -301,7 +301,14 @@ class PackageSetsTest {
         assertTrue(n6.check(shas(xin)).contains("n6-f8u: OneOSWallpapersFoldGrid.apk missing"))
 
         val extra = shas(xin) + "${"a".repeat(64)}  OneOSPixelStatusBar.apk\n"
-        assertEquals(listOf("x9u-in-sultra: OneOSPixelStatusBar.apk is not in this set"), xin.check(extra))
+        // The wave payloads are modeled and accepted by the runtime scripts,
+        // but remain deliberately unpublished until real SHA pins and release
+        // assets exist. Keep those two missing-file errors fail-closed while
+        // also checking that unrelated files are rejected.
+        assertEquals(
+            (unpublishedWaveErrors(xin) + "x9u-in-sultra: OneOSPixelStatusBar.apk is not in this set").sorted(),
+            xin.check(extra).sorted(),
+        )
         val tether = shas(xin) + "${"a".repeat(64)}  tethering_payload.img\n"
         assertEquals(listOf("x9u-in-sultra: tethering_payload.img is left out of this set"), xin.check(tether))
         val dup = shas(xin) + shas(xin).lines().first() + "\n"
