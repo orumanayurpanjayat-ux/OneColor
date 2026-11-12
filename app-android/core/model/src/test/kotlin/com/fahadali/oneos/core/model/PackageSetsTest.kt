@@ -310,7 +310,7 @@ class PackageSetsTest {
             xin.check(extra).sorted(),
         )
         val tether = shas(xin) + "${"a".repeat(64)}  tethering_payload.img\n"
-        assertEquals(listOf("x9u-in-sultra: tethering_payload.img is left out of this set"), xin.check(tether))
+        assertEquals((unpublishedWaveErrors(xin) + "x9u-in-sultra: tethering_payload.img is left out of this set").sorted(), xin.check(tether).sorted())
         val dup = shas(xin) + shas(xin).lines().first() + "\n"
         assertEquals(listOf("${shas(xin).lines().first().substringAfter("  ")} listed twice"), xin.check(dup))
     }
