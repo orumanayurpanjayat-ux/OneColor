@@ -106,7 +106,7 @@ class SettingsPreferenceFragment : InsetPreferenceFragment() {
             setTitle(R.string.biometric_help_title)
             setSummary(R.string.biometric_help_summary)
             isIconSpaceReserved = true
-            setIcon(OuiIcons.drawable.ic_oui_info_outline)
+            setIcon(R.drawable.ic_oneos_biometrics)
             setOnPreferenceClickListener {
                 val message = listOf(
                     R.string.biometric_help_intro,
