@@ -15,7 +15,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: oneos-full-apk-${{ github.workflow }}-${{ github.ref }}
+  # Isolate builds by commit: duplicate runs for the same SHA may cancel,
+  # but a newer commit must not cancel a different commit's queued build.
+  group: oneos-full-apk-${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
