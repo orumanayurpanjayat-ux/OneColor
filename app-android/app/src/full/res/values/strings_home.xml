@@ -54,6 +54,8 @@
     <string name="home_row_last_unread">%1$s · tap to see how it went</string>
     <string name="home_row_systems">Systems</string>
     <string name="home_row_systems_summary">Set up another one, or use a downloaded file</string>
+    <string name="home_row_guest_modules">Guest modules</string>
+    <string name="home_row_guest_modules_summary">Manage modules in %1$s</string>
     <string name="home_row_advanced_summary">Storage, repair, last session and help</string>
     <string name="home_row_session">Last session</string>
     <string name="home_row_session_summary">What happened, and the logs to share</string>

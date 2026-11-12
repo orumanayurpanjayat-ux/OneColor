@@ -617,6 +617,7 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
             Cards.row(card, R.drawable.ic_home_row_session, getString(R.string.home_row_session), getString(R.string.home_row_session_summary)) {
                 startActivity(Intent(ctx, LastSessionActivity::class.java))
             }
+            guestModulesRow(card, ctx)
             return
         }
         // Setup that did not finish (it stopped, or a check refused it): its plain message.
@@ -629,6 +630,7 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
         }
         lastRow(card, s)
         otherSystems(activity, card, s)
+        guestModulesRow(card, ctx)
         // Another system or a downloaded file; not while checking or working, nor when the main button does the same.
         val choosing = s.kind == HomeState.Kind.NOTHING_SET_UP && s.primary == FixAction.CHOOSE_SYSTEM
         if (s.kind != HomeState.Kind.CHECKING && s.kind !in BUSY && !choosing) {
@@ -638,6 +640,19 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
         }
         Cards.row(card, R.drawable.ic_oneos_row_advanced, getString(R.string.home_advanced), getString(R.string.home_row_advanced_summary)) {
             startActivity(Intent(ctx, AdvancedActivity::class.java))
+        }
+    }
+
+    /** Keep guest controls one tap away when a real system is already prepared. */
+    private fun guestModulesRow(card: LinearLayout, ctx: Context) {
+        val image = EnvironmentNavigation.preparedImage(ctx) ?: return
+        Cards.row(
+            card,
+            R.drawable.ic_oneos_row_modules,
+            getString(R.string.home_row_guest_modules),
+            getString(R.string.home_row_guest_modules_summary, image.name),
+        ) {
+            startActivity(Intent(ctx, GuestRuntimeActivity::class.java).putExtra("image", image.id))
         }
     }
 

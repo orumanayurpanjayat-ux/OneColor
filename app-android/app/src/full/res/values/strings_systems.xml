@@ -23,6 +23,7 @@
     <string name="systems_download">Download</string>
     <string name="systems_download_drive">Download from Google Drive</string>
     <string name="systems_have_file">I have the file</string>
+    <string name="systems_manage_guest_modules">Manage guest modules</string>
     <string name="systems_set_up">Set up %1$s</string>
     <string name="systems_show_progress">Show progress</string>
     <string name="systems_pick_other">That file is %1$s.</string>

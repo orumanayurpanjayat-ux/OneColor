@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Row icon for guest module controls: a small stack of distinct modules. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M5,4h6a2,2 0,0 1,2,2v5H7a2,2 0,0 1,-2,-2z M14,13h5a2,2 0,0 1,2,2v5h-5a2,2 0,0 1,-2,-2z M5,15h5v5H7a2,2 0,0 1,-2,-2z"
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="@color/oneos_icon"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="1.8" />
+</vector>

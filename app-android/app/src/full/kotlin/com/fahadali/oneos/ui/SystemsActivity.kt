@@ -599,6 +599,10 @@ class SystemsFragment : Fragment() {
                 menu.add(R.string.catalog_details).setOnMenuItemClickListener {
                     AlertDialog.Builder(ctx).setTitle(image.displayName).setMessage(image.blurb + "\n\n" + image.variant.orEmpty() + "\n" + Units.bytes(image.gzBytes)).setPositiveButton(android.R.string.ok, null).show(); true
                 }
+                if (setUp) menu.add(R.string.systems_manage_guest_modules).setOnMenuItemClickListener {
+                    activity?.startActivity(Intent(ctx, GuestRuntimeActivity::class.java).putExtra("image", image.id))
+                    true
+                }
             }.show()
         }
         val a = activity as? SystemsActivity

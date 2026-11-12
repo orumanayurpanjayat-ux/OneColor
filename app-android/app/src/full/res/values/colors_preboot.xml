@@ -1,6 +1,6 @@
 <resources>
-    <color name="preboot_page">#F6F6F6</color>
+    <color name="preboot_page">@color/oneos_page_background</color>
     <color name="preboot_card">#FFFFFF</color>
-    <color name="preboot_secondary">#707073</color>
-    <color name="preboot_primary">#387AFF</color>
+    <color name="preboot_secondary">@color/oneos_text_secondary</color>
+    <color name="preboot_primary">@color/oneos_primary</color>
 </resources>
