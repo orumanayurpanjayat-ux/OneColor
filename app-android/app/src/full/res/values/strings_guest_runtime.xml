@@ -1,4 +1,9 @@
 <resources>
+    <string name="guest_modules_intro_title">Modules for this guest</string>
+    <string name="guest_modules_intro_summary">Choose which modules are active inside this system. Changes are staged safely and take effect the next time the guest starts.</string>
+    <string name="guest_modules_title">Manage guest modules</string>
+    <string name="guest_modules_import">Import module</string>
+    <string name="guest_modules_working">Working…</string>
     <string name="guest_root_shared_kernel_title">Guest root has access to the whole phone</string>
     <string name="guest_root_shared_kernel_summary">Root granted in the guest is root on this phone’s shared kernel. Separate app permissions, modules and Xposed state do not fully isolate privileged code from One UI.</string>
 </resources>

@@ -1,1 +1,6 @@
-<resources><color name="oneos_page_background">#000000</color><color name="oneos_check_surface">#2E2E30</color></resources>
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark surfaces: lifted from pure black for a calmer, layered hierarchy. -->
+    <color name="oneos_page_background">#0B0D12</color>
+    <color name="oneos_check_surface">#242A34</color>
+</resources>

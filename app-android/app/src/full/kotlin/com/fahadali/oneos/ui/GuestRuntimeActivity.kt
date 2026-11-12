@@ -68,7 +68,7 @@ class GuestRuntimeActivity : EdgeToEdgeActivity() {
         setContentView(R.layout.activity_guest_modules)
         val footer = findViewById<View>(R.id.guest_modules_footer)
         val toolbar = findViewById<ToolbarLayout>(R.id.guest_modules_toolbar)
-        toolbar.setTitle("Manage guest modules")
+        toolbar.setTitle(getString(R.string.guest_modules_title))
         toolbar.showNavigationButtonAsBack = true
         toolbar.setNavigationButtonOnClickListener { onBackPressedDispatcher.onBackPressed() }
         toolbar.setAdaptiveMarginProvider(dev.oneuiproject.oneui.widget.AdaptiveCoordinatorLayout.MARGIN_PROVIDER_ZERO)
@@ -136,7 +136,11 @@ class GuestRuntimeActivity : EdgeToEdgeActivity() {
                 }
             }
         }
-        findViewById<Button>(R.id.guest_modules_import).isEnabled = loaded && state.ready && !busy
+        findViewById<Button>(R.id.guest_modules_import).apply {
+            isEnabled = loaded && state.ready && !busy
+            setText(if (busy) R.string.guest_modules_working else R.string.guest_modules_import)
+            contentDescription = getString(if (busy) R.string.guest_modules_working else R.string.guest_modules_import)
+        }
     }
     private fun moduleOptions(module: GuestRuntimeStore.Module): List<Pair<String, () -> Unit>> = buildList {
         if ("webui" in module.capabilities) add("WebUI · Open inside guest" to { showError("Open this module's WebUI from OneOS inside the guest.") })
