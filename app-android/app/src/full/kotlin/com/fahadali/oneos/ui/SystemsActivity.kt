@@ -170,6 +170,8 @@ class SystemsFragment : Fragment() {
     private val subs = mutableListOf<() -> Unit>()
     private var profile: PhoneProfile? = null
     private var profileRead = false
+    private var profileReading = false
+    private var profileReadFailed = false
     private var lastKey: List<Any?>? = null
     private var snapHelper: androidx.recyclerview.widget.PagerSnapHelper? = null
     private var revealed = false
@@ -238,16 +240,25 @@ class SystemsFragment : Fragment() {
             profile = it
             profileRead = true
         }
-        if (!profileRead) {
-            val app = requireContext().applicationContext
-            io.execute {
-                val f = runCatching { FactProbe(app).collect(RootProbe(app).signals()) }.getOrNull()
-                val p = f?.let { Profiles.resolve(it).profile }
-                activity?.runOnUiThread {
-                    profile = p
-                    profileRead = true
-                    redraw(force = true)
-                }
+        if (!profileRead) readProfile()
+    }
+
+    private fun readProfile() {
+        if (profileReading) return
+        val owner = activity ?: return
+        val app = owner.applicationContext
+        profileReading = true
+        profileReadFailed = false
+        profileRead = false
+        redraw(force = true)
+        io.execute {
+            val result = runCatching { Profiles.resolve(FactProbe(app).collect(RootProbe(app).signals())).profile }
+            owner.runOnUiThread {
+                profile = result.getOrNull()
+                profileReadFailed = result.isFailure
+                profileRead = true
+                profileReading = false
+                if (isAdded) redraw(force = true)
             }
         }
     }
@@ -472,14 +483,20 @@ class SystemsFragment : Fragment() {
             val loading = root.findViewById<View>(R.id.systems_empty_loading)
             val title = root.findViewById<TextView>(R.id.systems_empty_title)
             val summary = root.findViewById<TextView>(R.id.systems_empty_summary)
-            val action = root.findViewById<View>(R.id.systems_empty_action)
-            val reading = !profileRead
-            loading.visibility = if (reading) View.VISIBLE else View.GONE
-            title.setText(if (reading) R.string.systems_reading else R.string.systems_none_title)
-            summary.visibility = if (reading) View.GONE else View.VISIBLE
-            action.visibility = if (reading) View.GONE else View.VISIBLE
+            val action = root.findViewById<Button>(R.id.systems_empty_action)
+            loading.visibility = if (profileReading) View.VISIBLE else View.GONE
+            title.setText(when {
+                profileReading -> R.string.systems_reading
+                profileReadFailed -> R.string.systems_read_error_title
+                else -> R.string.systems_none_title
+            })
+            summary.visibility = if (profileReading) View.GONE else View.VISIBLE
+            summary.setText(if (profileReadFailed) R.string.systems_read_error_summary else R.string.systems_none_line)
+            action.visibility = if (profileReading) View.GONE else View.VISIBLE
+            action.setText(if (profileReadFailed) R.string.systems_retry else R.string.systems_phone_status)
             action.setOnClickListener {
-                startActivity(Intent(ctx, MainActivity::class.java).putExtra("system_detail", true))
+                if (profileReadFailed) readProfile()
+                else startActivity(Intent(ctx, MainActivity::class.java).putExtra("system_detail", true))
             }
             return
         }
