@@ -73,12 +73,17 @@ object ModuleCards {
         if (options.isNotEmpty()) {
             card.addView(CardItemView(ctx).apply {
                 title = manageTitle
-                summary = manageSummary
                 minimumHeight = dp(72)
                 showTopDivider = true
                 isEnabled = enabled
                 getTitleView().textSize = 16f
-                getSummaryView().apply { textSize = 14f; maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
+                getSummaryView().apply {
+                    text = manageSummary
+                    visibility = if (manageSummary.isBlank()) View.GONE else View.VISIBLE
+                    textSize = 14f
+                    maxLines = 2
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                }
                 getEndImageView()?.apply {
                     setImageResource(dev.oneuiproject.oneui.R.drawable.ic_oui_keyboard_arrow_right)
                     visibility = View.VISIBLE
