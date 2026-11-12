@@ -24,6 +24,7 @@ import androidx.fragment.app.Fragment
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.device.FactProbe
 import com.fahadali.oneos.core.model.AndroidRelease
+import com.fahadali.oneos.core.model.CatalogCarouselPosition
 import com.fahadali.oneos.core.model.FixAction
 import com.fahadali.oneos.core.model.ImageIdentifier
 import com.fahadali.oneos.core.model.ImageIdentity
@@ -218,7 +219,9 @@ class SystemsFragment : Fragment() {
                 if (state == androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE && swiping) rv.post {
                     if (rv.scrollState != androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE || !swiping) return@post
                     val selected = snapHelper?.findSnapView(layout)?.let(layout::getPosition)
-                    if (selected != null && currentEntries.isNotEmpty()) currentEntries[selected % currentEntries.size].image?.let { CarouselSelection.remember(rv.context, it) }
+                    if (selected != null) updateCarouselPosition(rv, selected)
+                    selected?.let { CatalogCarouselPosition.itemIndex(it, currentEntries.size) }
+                        ?.let(currentEntries::get)?.image?.let { CarouselSelection.remember(rv.context, it) }
                     if (selected != null && selected != swipeStart) {
                         // Use the public Android feedback constant: the SESL reflector is
                         // restricted to Samsung's library group and cannot be called by the app.
@@ -402,12 +405,9 @@ class SystemsFragment : Fragment() {
         banner?.visibility = View.GONE
         line.setOnClickListener(null)
         line.isClickable = false
-        if (profileRead && profile == null) {
-            line.text = getString(R.string.systems_none_line)
-            line.visibility = View.VISIBLE
-        } else {
-            line.visibility = View.GONE
-        }
+        // Unsupported phones use the centered empty card in the carousel area, which
+        // includes this explanation and a direct route to phone details.
+        line.visibility = View.GONE
     }
 
     private fun redraw(force: Boolean = false) {
@@ -464,13 +464,35 @@ class SystemsFragment : Fragment() {
 
 
         currentEntries = entries
+        if (entries.isEmpty()) {
+            carousel.adapter = null
+            carousel.visibility = View.GONE
+            root.findViewById<TextView>(R.id.systems_carousel_position).visibility = View.GONE
+            root.findViewById<View>(R.id.systems_empty_state).visibility = View.VISIBLE
+            val loading = root.findViewById<View>(R.id.systems_empty_loading)
+            val title = root.findViewById<TextView>(R.id.systems_empty_title)
+            val summary = root.findViewById<TextView>(R.id.systems_empty_summary)
+            val action = root.findViewById<View>(R.id.systems_empty_action)
+            val reading = !profileRead
+            loading.visibility = if (reading) View.VISIBLE else View.GONE
+            title.setText(if (reading) R.string.systems_reading else R.string.systems_none_title)
+            summary.visibility = if (reading) View.GONE else View.VISIBLE
+            action.visibility = if (reading) View.GONE else View.VISIBLE
+            action.setOnClickListener {
+                startActivity(Intent(ctx, MainActivity::class.java).putExtra("system_detail", true))
+            }
+            return
+        }
+        root.findViewById<View>(R.id.systems_empty_state).visibility = View.GONE
+        carousel.visibility = View.VISIBLE
         val state = if (revealed) carousel.layoutManager?.onSaveInstanceState() else null
         carousel.adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<CarouselHolder>() {
             override fun getItemCount() = Int.MAX_VALUE
             override fun onCreateViewHolder(parent: ViewGroup, type: Int): CarouselHolder =
                 CarouselHolder(android.widget.FrameLayout(parent.context))
             override fun onBindViewHolder(holder: CarouselHolder, position: Int) {
-                val entry = entries[position % entries.size]
+                val index = CatalogCarouselPosition.itemIndex(position, entries.size) ?: return
+                val entry = entries[index]
                 val image = entry.image
                 holder.box.removeAllViews()
                 val (width, height) = cardSize(carousel)
@@ -513,12 +535,31 @@ class SystemsFragment : Fragment() {
                     carousel.viewTreeObserver.removeOnPreDrawListener(this)
                     initialDraw = null
                     revealed = true
+                    updateCarouselPosition(carousel, target)
                     scaleCards(carousel)
                     carousel.animate().alpha(1f).translationY(0f).setDuration(220)
                         .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
                     return true
                 }
             }.also { carousel.viewTreeObserver.addOnPreDrawListener(it) }
+        } else {
+            carousel.post {
+                if (carousel.scrollState == androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE) {
+                    val manager = carousel.layoutManager
+                    val selected = manager?.let { snapHelper?.findSnapView(it)?.let(it::getPosition) }
+                    if (selected != null) updateCarouselPosition(carousel, selected)
+                }
+            }
+        }
+    }
+
+    private fun updateCarouselPosition(carousel: androidx.recyclerview.widget.RecyclerView, adapterPosition: Int) {
+        val count = currentEntries.size
+        if (count == 0) return
+        val index = CatalogCarouselPosition.itemIndex(adapterPosition, count) ?: return
+        carousel.rootView.findViewById<TextView>(R.id.systems_carousel_position)?.apply {
+            text = getString(R.string.systems_carousel_position, index + 1, count)
+            visibility = View.VISIBLE
         }
     }
 
