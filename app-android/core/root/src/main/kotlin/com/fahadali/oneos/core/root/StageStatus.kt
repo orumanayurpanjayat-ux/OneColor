@@ -287,7 +287,7 @@ data class StageStatus(
          */
         // Keep this in lockstep with oneos_root.sh check_files: Wave .dex files are ordinary set payloads,
         // not runtime leftovers; only Fold8AngleRelay.dex is an unlisted runtime helper.
-        val LEFTOVER = Regex("""^(.*_patched.*|.*_payload\.img|.*\.apk|.*\.jar|.*\.so|.*\.sh|.*\.tar|.*\.dex|zygote_exec|oneos_btaudio|socket_exec|clean_apex_info_list\.xml|oneos-.*)$""")
+        val LEFTOVER = Regex("""^(.*_patched.*|.*_payload\.img|.*\.apk|.*\.jar|.*\.so|.*\.sh|.*\.tar|Fold8AngleRelay\.dex|zygote_exec|oneos_btaudio|socket_exec|clean_apex_info_list\.xml|oneos-.*)$""")
 
         /** Written into the stage by the session itself (guest_prepare.sh's watchdog feeder, still running after an in-place return). */
         val RUNTIME = setOf("oneos_wdog_feeder.sh")
