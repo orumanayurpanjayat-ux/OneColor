@@ -12,17 +12,7 @@ class PackageSetsTest {
     private val pixel = PackageSets.PIXEL_F8U
     private val xin = PackageSets.X9U_IN_SULTRA
 
-    // These wave files are in the source set model but are not yet published
-    // or pinned in the X9U SHA manifest. The set must stay fail-closed until
-    // both release assets and their real SHA-256 hashes are available.
-    private val unpublishedX9uWavePayloads = setOf("SystemUI_wave.dex", "OneOSWaveRepack.dex")
-
-    private fun unpublishedWaveErrors(set: PackageSet): List<String> =
-        if (set.id == PackageSets.ID_X9U_IN_SULTRA) {
-            unpublishedX9uWavePayloads.map { "${set.id}: $it missing" }.sorted()
-        } else {
-            emptyList()
-        }
+    private val x9uWavePayloads = setOf("SystemUI_wave.dex", "OneOSWaveRepack.dex")
 
     /** sha256sum of out/overlays_n6g_r3, out/overlays_x9u_r51, out/overlays_x9u_in_r53 (2026-11-03) and out/overlays_pixel_f8u_r2 without the omitted files. */
     private fun shas(set: PackageSet) = Bundles.text("packages/${set.id}.sha256")
@@ -195,7 +185,7 @@ class PackageSetsTest {
         // The IN build's set (0.4.11; 0.4.51 the only Find X9 Ultra build): the Find N6 set's files but the
         // fold's (the wallpaper grid, the Fold8 SystemUI and its hinge relay), with its own guest vold as gvld.
         assertEquals(
-            ((n6.names - PackageSets.WALLPAPER_GRID_RRO - "Fold8SystemUI.apk" - "Fold8AngleRelay.dex") + unpublishedX9uWavePayloads).toSet(),
+            ((n6.names - PackageSets.WALLPAPER_GRID_RRO - "Fold8SystemUI.apk" - "Fold8AngleRelay.dex") + x9uWavePayloads).toSet(),
             xin.names.toSet(),
         )
         // 0.4.47: the global builds' Theme Store without its brand check, the same file in both sets.
@@ -281,7 +271,7 @@ class PackageSetsTest {
     @Test
     fun shaListsNameExactlyTheSetsFiles() {
         for (s in PackageSets.ALL) {
-            assertEquals(s.id, unpublishedWaveErrors(s), s.check(shas(s)).sorted())
+            assertEquals(s.id, emptyList<String>(), s.check(shas(s)).sorted())
         }
         // The Pixel list and a ColorOS one are not interchangeable.
         val pixelOnN6 = pixel.check(shas(n6))
@@ -301,16 +291,13 @@ class PackageSetsTest {
         assertTrue(n6.check(shas(xin)).contains("n6-f8u: OneOSWallpapersFoldGrid.apk missing"))
 
         val extra = shas(xin) + "${"a".repeat(64)}  OneOSPixelStatusBar.apk\n"
-        // The wave payloads are modeled and accepted by the runtime scripts,
-        // but remain deliberately unpublished until real SHA pins and release
-        // assets exist. Keep those two missing-file errors fail-closed while
-        // also checking that unrelated files are rejected.
+        // The published wave payloads are pinned; only the unrelated extra file is rejected.
         assertEquals(
-            (unpublishedWaveErrors(xin) + "x9u-in-sultra: OneOSPixelStatusBar.apk is not in this set").sorted(),
-            xin.check(extra).sorted(),
+            listOf("x9u-in-sultra: OneOSPixelStatusBar.apk is not in this set"),
+            xin.check(extra),
         )
         val tether = shas(xin) + "${"a".repeat(64)}  tethering_payload.img\n"
-        assertEquals((unpublishedWaveErrors(xin) + "x9u-in-sultra: tethering_payload.img is left out of this set").sorted(), xin.check(tether).sorted())
+        assertEquals(listOf("x9u-in-sultra: tethering_payload.img is left out of this set"), xin.check(tether).sorted())
         val dup = shas(xin) + shas(xin).lines().first() + "\n"
         assertEquals(listOf("${shas(xin).lines().first().substringAfter("  ")} listed twice"), xin.check(dup))
     }
@@ -393,7 +380,7 @@ class PackageSetsTest {
         for (s in PackageSets.ALL) {
             val f = File(dir, "${s.id}.sha256")
             assumeTrue("${f.name} not there yet", f.isFile)
-            assertEquals(s.id, unpublishedWaveErrors(s), s.check(f.readText()).sorted())
+            assertEquals(s.id, emptyList<String>(), s.check(f.readText()).sorted())
         }
         // The IN sets' lists are gone with the image (0.3.7).
         assertEquals(PackageSets.ALL.map { "${it.id}.sha256" }.toSet(), dir!!.list()!!.filter { it.endsWith(".sha256") }.toSet())
