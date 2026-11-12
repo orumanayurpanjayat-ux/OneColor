@@ -299,9 +299,12 @@ class StageAuditTest {
             "host_installd.table", "takeover_app.log", "payload_loops", "persist_props.snapshot", "oneos_vrr.xml", "guest_locale",
         )
         for (n in names) assertEquals(n, patterns.any { glob(it, n) }, StageStatus.LEFTOVER.matches(n))
-        // Every file of every set is one of them, except guards.txt (oneos_switch.sh and guest_prepare.sh check it by hash).
+        // Most payload names also need the root script's leftover guard. These are intentional
+        // exceptions: guards.txt is hash-checked by the session scripts, and Wave's dex payloads
+        // are ordinary set files (not runtime leftovers).
+        val intentionallyUnclassified = setOf("guards.txt", "SystemUI_wave.dex", "OneOSWaveRepack.dex")
         for (set in PackageSets.ALL) for (f in set.names) {
-            if (f != "guards.txt") assertTrue("${set.id} $f", patterns.any { glob(it, f) })
+            if (f !in intentionallyUnclassified) assertTrue("${set.id} $f", patterns.any { glob(it, f) })
         }
     }
 
