@@ -285,6 +285,8 @@ data class StageStatus(
          * Flat names the session scripts bind, run or read (oneos_switch.sh's ONEOS_APP check, and more):
          * root's check_files list, with the Pixel set's oneos-telephony.jar and .sha256 (0.3.7).
          */
+        // Keep this in lockstep with oneos_root.sh check_files: Wave .dex files are ordinary set payloads,
+        // not runtime leftovers; only Fold8AngleRelay.dex is an unlisted runtime helper.
         val LEFTOVER = Regex("""^(.*_patched.*|.*_payload\.img|.*\.apk|.*\.jar|.*\.so|.*\.sh|.*\.tar|.*\.dex|zygote_exec|oneos_btaudio|socket_exec|clean_apex_info_list\.xml|oneos-.*)$""")
 
         /** Written into the stage by the session itself (guest_prepare.sh's watchdog feeder, still running after an in-place return). */

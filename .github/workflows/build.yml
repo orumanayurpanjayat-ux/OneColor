@@ -184,6 +184,7 @@ jobs:
           set -Eeuo pipefail
 
           ./gradlew \
+            --continue \\
             --no-daemon \
             --console=plain \
             --stacktrace \
