@@ -18,6 +18,7 @@ EXPECTED_JAR_SHA = "832efa6618bdf7673503706326dd8f4c2d21f8b9bac2c988c410087e1424
 RELEVANT_RESCUE_REFS = (
     "RescueParty;->isDisabled()Z",
     "RescueParty;->-$$Nest$smisDisabled()Z",
+    "RescueParty;->-$$Nest$smexecuteRescueLevel(",
     "RescueParty;->executeFactoryReset(",
     "RescueParty$1;-><init>",
 )
@@ -129,8 +130,43 @@ def inspect(image, debugfs, apktool):
             (source, block) for source, block in scheduler_methods
             if "RescueParty;->executeFactoryReset(" in "\n".join(block)
         ]
-        if not reset_callers:
-            raise SystemExit("no RescueParty method schedules its factory-reset path")
+        if len(reset_callers) != 1 or "executeRescueLevelInternal(" not in "\n".join(reset_callers[0][1]):
+            raise SystemExit("factory-reset scheduling no longer has the inspected RescueParty level-7 caller")
+        mitigation_callers = []
+        for source in decoded.rglob("*.smali"):
+            lines = source.read_text(encoding="utf-8").splitlines()
+            for block in method_blocks(lines):
+                text = "\n".join(block)
+                if "RescueParty;->-$$Nest$smexecuteRescueLevel(" not in text:
+                    continue
+                # The private synthetic bridge itself is expected to forward
+                # the call. Every non-bridge entry point must guard it first.
+                if "bridge synthetic" in block[0]:
+                    continue
+                guard = text.find("RescueParty;->-$$Nest$smisDisabled()Z")
+                mitigation = text.find("RescueParty;->-$$Nest$smexecuteRescueLevel(")
+                move_result = text.find("move-result", guard)
+                branch = min(
+                    (position for position in (
+                        text.find("if-eqz", move_result), text.find("if-nez", move_result),
+                        text.find("if-eq", move_result), text.find("if-ne", move_result),
+                    ) if position >= 0),
+                    default=-1,
+                )
+                early_return = min(
+                    (position for position in (
+                        text.find("return-void", move_result), text.find("return ", move_result),
+                        text.find("return\n", move_result),
+                    ) if position >= 0),
+                    default=-1,
+                )
+                if guard < 0 or move_result < guard or branch < move_result or early_return < branch or early_return > mitigation:
+                    raise SystemExit(
+                        f"{source.relative_to(decoded)}: rescue mitigation is not guarded by isDisabled before scheduling"
+                    )
+                mitigation_callers.append((source.relative_to(decoded), block))
+        if len(mitigation_callers) < 2:
+            raise SystemExit("expected guarded boot-loop and health-check RescueParty mitigation entry points")
 
         print("===== BEGIN PLK110 CRASHRECOVERY SAFETY INSPECTION =====")
         print(f"AOSP crashrecovery APEX SHA-256: {digest}")
@@ -143,6 +179,9 @@ def inspect(image, debugfs, apktool):
             print("\n".join(block))
         for source, block in reset_callers:
             print(f"RescueParty executeFactoryReset caller: {source}")
+            print("\n".join(block))
+        for source, block in mitigation_callers:
+            print(f"Guarded RescueParty mitigation entry: {source}")
             print("\n".join(block))
         for source, block in call_sites:
             print(f"Factory-reset call site: {source}")

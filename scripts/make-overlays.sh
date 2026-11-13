@@ -102,6 +102,20 @@ BUILDS = [
         "service.incremental.so": "43ae83091df41f9cd43fa985e7b629e09ba9f581d93336d0efb38dd05de1bab8",
         "crashrecovery-aosp.apex": "a8396ec6bebe9511a701315964314aa8a755bef32d20cf4458293ed319bfdcf1",
     }, [("vold", 0x104e6, NAME), ("vold", 0x78b64, TRY_START), ("service.incremental.so", 0x6536b, NAME)]),
+    # The PLK110 ColorOS 17 GSI contains the same exact ColorOS vold and
+    # incremental binaries as the pinned CP2A build above, but a separate AOSP
+    # crashrecovery APEX. Its APEX and service-crashrecovery.jar are both pinned
+    # and inspected by inspect-plk110-crashrecovery.py: RescueParty.isDisabled
+    # recognizes persist.sys.disable_rescue, its boot-loop and health-check
+    # mitigation entry points check that guard before scheduling a rescue, and
+    # guest_start.sh refuses to run unless OneOS set the guard and
+    # persist.sys.enable_rescue is unset. The PLK110 boot path therefore keeps the
+    # guest factory-reset Runnable from reaching One UI's vold.
+    ("ColorOS 17 PLK110 GSI (owner-pinned XGSI_PLK110_17.0.0.100)", {
+        "vold": "3df4d13bb9636cb9833a6ee2027d189c6acfd25b0404058ca130afb164a55896",
+        "service.incremental.so": "43ae83091df41f9cd43fa985e7b629e09ba9f581d93336d0efb38dd05de1bab8",
+        "crashrecovery-aosp.apex": "05d8d921185130d88388b417387bbc0ba74281251b0d5188dae16953b82481d2",
+    }, [("vold", 0x104e6, NAME), ("vold", 0x78b64, TRY_START), ("service.incremental.so", 0x6536b, NAME)]),
     # The Find X9 Ultra IN (global) build of the same release: its vold is
     # the CN one laid out 0x2000 later (the same instructions; start() takes
     # the string at 0x7b178, try_start's tbz is at +0x68 as in the CN build),

@@ -9,6 +9,9 @@ BUILDER = (ROOT / "scripts/build-plk110-overlays.sh").read_text()
 WORKFLOW = (ROOT / ".github/workflows/plk110-overlays.yml").read_text()
 PATCH_NOTE = (ROOT / "docs/patch-notes/2026-11-13-plk110-coloros-gsi.md").read_text()
 PATCH_BUILT_JAR = (ROOT / "scripts/patch-built-jar.sh").read_text()
+MAKE_OVERLAYS = (ROOT / "scripts/make-overlays.sh").read_text()
+GUEST_START = (ROOT / "switcher/assets/guest_start.sh").read_text()
+ONEOS_SWITCH = (ROOT / "switcher/assets/oneos_switch.sh").read_text()
 CRASHRECOVERY_INSPECTOR = (ROOT / "scripts/inspect-plk110-crashrecovery.py").read_text()
 INSPECTOR_SPEC = importlib.util.spec_from_file_location(
     "inspect_plk110_crashrecovery", ROOT / "scripts/inspect-plk110-crashrecovery.py"
@@ -43,7 +46,7 @@ class Plk110OverlayBuilderTest(unittest.TestCase):
         overlay_builder = (ROOT / "scripts/make-overlays.sh").read_text()
         self.assertIn('sha(d) if d else "missing"', overlay_builder)
 
-    def test_pinned_plk_crashrecovery_apex_is_inspected_before_allowlisting(self):
+    def test_plk_vold_pair_is_pinned_to_inspected_crashrecovery(self):
         self.assertIn("inspect-plk110-crashrecovery.py", BUILDER)
         self.assertIn("05d8d921185130d88388b417387bbc0ba74281251b0d5188dae16953b82481d2", CRASHRECOVERY_INSPECTOR)
         self.assertIn("832efa6618bdf7673503706326dd8f4c2d21f8b9bac2c988c410087e14248761", CRASHRECOVERY_INSPECTOR)
@@ -51,6 +54,12 @@ class Plk110OverlayBuilderTest(unittest.TestCase):
         self.assertIn("RecoverySystem;->rebootPromptAndWipeUserData", CRASHRECOVERY_INSPECTOR)
         self.assertIn("RescueParty;->-$$Nest$smisDisabled()Z", CRASHRECOVERY_INSPECTOR)
         self.assertIn("RescueParty;->executeFactoryReset(", CRASHRECOVERY_INSPECTOR)
+        self.assertIn('"crashrecovery-aosp.apex": "05d8d921185130d88388b417387bbc0ba74281251b0d5188dae16953b82481d2"', MAKE_OVERLAYS)
+        self.assertIn('"vold": "3df4d13bb9636cb9833a6ee2027d189c6acfd25b0404058ca130afb164a55896"', MAKE_OVERLAYS)
+        self.assertIn('"service.incremental.so": "43ae83091df41f9cd43fa985e7b629e09ba9f581d93336d0efb38dd05de1bab8"', MAKE_OVERLAYS)
+        self.assertIn('set_prop persist.sys.disable_rescue true', ONEOS_SWITCH)
+        self.assertIn('persist.sys.disable_rescue is not true', GUEST_START)
+        self.assertIn('persist.sys.enable_rescue is set', GUEST_START)
         self.assertIn("PLK110 CRASHRECOVERY SAFETY INSPECTION", WORKFLOW)
 
     def test_rescueparty_method_match_ignores_synthetic_name_containing_signature(self):
@@ -92,7 +101,7 @@ class Plk110OverlayBuilderTest(unittest.TestCase):
             ".end method",
             ".method public static onHealthCheckFailed()V",
             "    invoke-static {}, Lcom/android/server/RescueParty;->-$$Nest$smisDisabled()Z",
-            "    invoke-static {}, Lcom/android/server/RescueParty;->executeFactoryReset()V",
+            "    invoke-static {}, Lcom/android/server/RescueParty;->-$$Nest$smexecuteRescueLevel()V",
             ".end method",
         ]
         refs = [
@@ -100,7 +109,7 @@ class Plk110OverlayBuilderTest(unittest.TestCase):
             if any(ref in "\n".join(block) for ref in INSPECTOR.RELEVANT_RESCUE_REFS)
         ]
         self.assertEqual(2, len(refs))
-        guarded_entry = next(block for block in refs if "RescueParty;->executeFactoryReset(" in "\n".join(block))
+        guarded_entry = next(block for block in refs if "RescueParty;->-$$Nest$smexecuteRescueLevel(" in "\n".join(block))
         self.assertIn("RescueParty;->-$$Nest$smisDisabled()Z", "\n".join(guarded_entry))
 
     def test_patch_built_jar_runs_pinned_apktool_jar_through_java(self):
