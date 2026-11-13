@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print the pinned PLK110 crash-recovery guard methods for safety review.
+"""Inspect the pinned PLK110 crash-recovery guard and reset call chain.
 
 The guest's vold is renamed only when the image's RescueParty guard makes its
 factory-reset path safe. This inspection keeps the exact source APEX available
@@ -14,6 +14,13 @@ import zipfile
 from pathlib import Path
 
 EXPECTED_APEX_SHA = "05d8d921185130d88388b417387bbc0ba74281251b0d5188dae16953b82481d2"
+EXPECTED_JAR_SHA = "832efa6618bdf7673503706326dd8f4c2d21f8b9bac2c988c410087e14248761"
+RELEVANT_RESCUE_REFS = (
+    "RescueParty;->isDisabled()Z",
+    "RescueParty;->-$$Nest$smisDisabled()Z",
+    "RescueParty;->executeFactoryReset(",
+    "RescueParty$1;-><init>",
+)
 
 
 def run(command):
@@ -74,6 +81,9 @@ def inspect(image, debugfs, apktool):
             if stream.read(2) != b"\x53\xef":
                 raise SystemExit("PLK110 crashrecovery APEX payload is not the expected ext filesystem")
         dump(debugfs, payload, "/javalib/service-crashrecovery.jar", jar)
+        jar_digest = hashlib.sha256(jar.read_bytes()).hexdigest()
+        if jar_digest != EXPECTED_JAR_SHA:
+            raise SystemExit(f"PLK110 service-crashrecovery.jar hash changed: {jar_digest}")
         run(["java", "-jar", str(apktool), "d", "-q", "-f", "-r", "-o", str(decoded), str(jar)])
 
         rescue_files = list(decoded.rglob("RescueParty.smali"))
@@ -81,6 +91,16 @@ def inspect(image, debugfs, apktool):
             raise SystemExit(f"expected one RescueParty.smali in crashrecovery APEX, found {len(rescue_files)}")
         rescue_lines = rescue_files[0].read_text(encoding="utf-8").splitlines()
         disabled = method_block(rescue_lines, "isDisabled()Z", "RescueParty.isDisabled()Z")
+        disabled_text = "\n".join(disabled)
+        for prop in (
+            "persist.sys.enable_rescue",
+            "persist.device_config.configuration.disable_rescue_party",
+            "persist.sys.disable_rescue",
+        ):
+            if f'"{prop}"' not in disabled_text:
+                raise SystemExit(f"RescueParty.isDisabled()Z does not check {prop}")
+        if "Landroid/os/Build;->TYPE:Ljava/lang/String;" not in disabled_text or '"userdebug"' not in disabled_text or '"eng"' not in disabled_text:
+            raise SystemExit("RescueParty.isDisabled()Z no longer checks eng/userdebug build types")
 
         call_sites = []
         scheduler_methods = []
@@ -88,7 +108,7 @@ def inspect(image, debugfs, apktool):
             lines = source.read_text(encoding="utf-8").splitlines()
             for block in method_blocks(lines):
                 text = "\n".join(block)
-                if "RescueParty;->isDisabled()Z" in text or "RescueParty$1;-><init>" in text:
+                if any(ref in text for ref in RELEVANT_RESCUE_REFS):
                     scheduler_methods.append((source.relative_to(decoded), block))
             for index, line in enumerate(lines):
                 if "RecoverySystem;->rebootPromptAndWipeUserData" not in line:
@@ -105,15 +125,24 @@ def inspect(image, debugfs, apktool):
             raise SystemExit("no crash-recovery method invokes RescueParty.isDisabled()Z")
         if not any("RescueParty$1;-><init>" in "\n".join(block) for _, block in scheduler_methods):
             raise SystemExit("no crash-recovery method schedules the factory-reset runnable")
+        reset_callers = [
+            (source, block) for source, block in scheduler_methods
+            if "RescueParty;->executeFactoryReset(" in "\n".join(block)
+        ]
+        if not reset_callers:
+            raise SystemExit("no RescueParty method schedules its factory-reset path")
 
         print("===== BEGIN PLK110 CRASHRECOVERY SAFETY INSPECTION =====")
         print(f"AOSP crashrecovery APEX SHA-256: {digest}")
-        print(f"service-crashrecovery.jar SHA-256: {hashlib.sha256(jar.read_bytes()).hexdigest()}")
+        print(f"service-crashrecovery.jar SHA-256: {jar_digest}")
         print(f"Source: {rescue_files[0].relative_to(decoded)}")
         print("RescueParty.isDisabled()Z:")
         print("\n".join(disabled))
         for source, block in scheduler_methods:
             print(f"RescueParty guard or factory-reset scheduler: {source}")
+            print("\n".join(block))
+        for source, block in reset_callers:
+            print(f"RescueParty executeFactoryReset caller: {source}")
             print("\n".join(block))
         for source, block in call_sites:
             print(f"Factory-reset call site: {source}")

@@ -46,8 +46,11 @@ class Plk110OverlayBuilderTest(unittest.TestCase):
     def test_pinned_plk_crashrecovery_apex_is_inspected_before_allowlisting(self):
         self.assertIn("inspect-plk110-crashrecovery.py", BUILDER)
         self.assertIn("05d8d921185130d88388b417387bbc0ba74281251b0d5188dae16953b82481d2", CRASHRECOVERY_INSPECTOR)
+        self.assertIn("832efa6618bdf7673503706326dd8f4c2d21f8b9bac2c988c410087e14248761", CRASHRECOVERY_INSPECTOR)
         self.assertIn("RescueParty.isDisabled()Z", CRASHRECOVERY_INSPECTOR)
         self.assertIn("RecoverySystem;->rebootPromptAndWipeUserData", CRASHRECOVERY_INSPECTOR)
+        self.assertIn("RescueParty;->-$$Nest$smisDisabled()Z", CRASHRECOVERY_INSPECTOR)
+        self.assertIn("RescueParty;->executeFactoryReset(", CRASHRECOVERY_INSPECTOR)
         self.assertIn("PLK110 CRASHRECOVERY SAFETY INSPECTION", WORKFLOW)
 
     def test_rescueparty_method_match_ignores_synthetic_name_containing_signature(self):
@@ -77,6 +80,28 @@ class Plk110OverlayBuilderTest(unittest.TestCase):
         self.assertEqual(len(blocks), 2)
         self.assertIn("RescueParty;->isDisabled()Z", "\n".join(blocks[0]))
         self.assertIn("RescueParty$1;-><init>", "\n".join(blocks[0]))
+
+    def test_crashrecovery_inspector_covers_the_synthetic_guard_bridge(self):
+        sample = [
+            ".method private static isDisabled()Z",
+            '    const-string v0, "persist.sys.disable_rescue"',
+            "    return v0",
+            ".end method",
+            ".method static bridge synthetic -$$Nest$smisDisabled()Z",
+            "    invoke-static {}, Lcom/android/server/RescueParty;->isDisabled()Z",
+            ".end method",
+            ".method public static onHealthCheckFailed()V",
+            "    invoke-static {}, Lcom/android/server/RescueParty;->-$$Nest$smisDisabled()Z",
+            "    invoke-static {}, Lcom/android/server/RescueParty;->executeFactoryReset()V",
+            ".end method",
+        ]
+        refs = [
+            block for block in INSPECTOR.method_blocks(sample)
+            if any(ref in "\n".join(block) for ref in INSPECTOR.RELEVANT_RESCUE_REFS)
+        ]
+        self.assertEqual(2, len(refs))
+        guarded_entry = next(block for block in refs if "RescueParty;->executeFactoryReset(" in "\n".join(block))
+        self.assertIn("RescueParty;->-$$Nest$smisDisabled()Z", "\n".join(guarded_entry))
 
     def test_patch_built_jar_runs_pinned_apktool_jar_through_java(self):
         self.assertIn('run_apktool() { java -jar "$APKTOOL" "$@"; }', PATCH_BUILT_JAR)
