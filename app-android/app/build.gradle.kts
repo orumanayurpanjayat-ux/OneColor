@@ -104,7 +104,9 @@ val setRemoteIds: Map<String, String> = File(packagesDir, "remote.txt").takeIf {
     ?.map { it.trim() }?.filter { it.isNotEmpty() && !it.startsWith("#") }
     ?.associate { l ->
         // gh:<tag> (GitHub), sf (SourceForge, 0.4.65), or a Drive file id.
-        val src = "(gh:(?:[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+:)?[a-z0-9][a-z0-9.-]{0,39}|sf|[A-Za-z0-9_-]{20,80})"
+        // One raw URL is permitted for the hash-pinned PermissionController compatibility APK.
+        val permissionPatchSource = "url:https://raw.githubusercontent.com/WeWaffles/OneLineage/10cd368dc4c67f3ec7e9c885e0474233cde8edcd/assets/PermissionController_patched.apk"
+        val src = "(gh:(?:[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+:)?[a-z0-9][a-z0-9.-]{0,39}|sf|[A-Za-z0-9_-]{20,80}|${Regex.escape(permissionPatchSource)})"
         val m = Regex("^([0-9a-f]{64}) ($src(,$src){0,15})$").matchEntire(l)
             ?: throw GradleException("packages/remote.txt: not a '<sha256> <source>[,<source>...]' line: $l")
         m.groupValues[1] to m.groupValues[2]

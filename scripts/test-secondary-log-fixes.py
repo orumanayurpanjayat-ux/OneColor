@@ -13,6 +13,7 @@ START = (ROOT / "switcher/assets/guest_start.sh").read_text()
 ROOT_SCRIPT = (ROOT / "app-android/app/src/full/assets/root/oneos_root.sh").read_text()
 PACKAGE_REMOTE = (ROOT / "app-android/packages/remote.txt").read_text()
 PACKAGE_SIZES = (ROOT / "app-android/packages/sizes.txt").read_text()
+APP_BUILD = (ROOT / "app-android/app/build.gradle.kts").read_text()
 
 
 class HostAppSplitTest(unittest.TestCase):
@@ -83,6 +84,8 @@ class PermissionPatchPackagingTest(unittest.TestCase):
         self.assertIn(f"{digest} {source}", PACKAGE_REMOTE)
         self.assertIn(f"{digest} 26008661", PACKAGE_SIZES)
         self.assertIn(digest, (ROOT / "app-android/app/src/full/kotlin/com/fahadali/oneos/session/SetDownloader.kt").read_text())
+        self.assertIn(f'permissionPatchSource = "{source}"', APP_BUILD)
+        self.assertIn("Regex.escape(permissionPatchSource)", APP_BUILD)
 
 
 if __name__ == "__main__":
