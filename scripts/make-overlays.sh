@@ -211,7 +211,7 @@ def sha(d):
 data = {n: read(n) for n in ("vold", "service.incremental.so", "crashrecovery-google.apex", "crashrecovery-aosp.apex", "crashrecovery-google-compressed.apex", "crashrecovery-aosp.capex")}
 build = next((b for b in BUILDS if all(sha(data[n]) == want for n, want in b[1].items())), None)
 if build is None:
-    have = ", ".join("%s %s" % (n, sha(d)[:12] if d else "missing") for n, d in data.items())
+    have = ", ".join("%s %s" % (n, sha(d) if d else "missing") for n, d in data.items())
     print("vold: not a build this was written against (%s): not patched, the guest vold keeps the name vold" % have)
     sys.exit(0)
 for name, off, (old, new) in build[2]:

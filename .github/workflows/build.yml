@@ -157,6 +157,7 @@ jobs:
           test -s scripts/build-guest-manager.sh
           test -s scripts/test-plk110-surfaceflinger.py
           test -s scripts/test-plk110-overlay-builder.py
+          test -s scripts/test-oplus-boot-hangs.py
           test -s scripts/build-plk110-overlays.sh
           test -s scripts/test-secondary-log-fixes.py
           test -s scripts/test-host-apex-bind.py
@@ -178,6 +179,9 @@ jobs:
 
       - name: Test PLK110 image-bound overlay builder
         run: python3 scripts/test-plk110-overlay-builder.py
+
+      - name: Test ColorOS boot-hang patcher register variants
+        run: python3 scripts/test-oplus-boot-hangs.py
 
       - name: Test PLK110 secondary log fixes
         run: python3 scripts/test-secondary-log-fixes.py

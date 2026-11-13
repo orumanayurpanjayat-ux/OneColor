@@ -54,26 +54,56 @@ def top_dir(root, path):
 
 def fix_game_gpu(root):
     path = find(root, os.path.join("com", "android", "server", "app", "features", "GameGpuControlPanel.smali"))
-    lines = open(path).read().split("\n")
+    with open(path, encoding="utf-8") as source:
+        lines = source.read().split("\n")
     idx = [i for i, l in enumerate(lines) if l == GAME_HEADER]
-    if len(idx) != 1 or lines[idx[0] + 1] != "    .locals 2":
-        sys.exit("GameGpuControlPanel.onBootCompleted not found as expected")
-    j = idx[0] + 2
-    while j < len(lines) and (lines[j].strip() == "" or lines[j].lstrip().startswith(".param")):
+    if len(idx) != 1:
+        candidates = [line.strip() for line in lines
+                      if line.startswith(".method") and "onBootCompleted" in line]
+        sys.exit("GameGpuControlPanel.onBootCompleted signature mismatch; found %d exact matches; candidates: %s" %
+                 (len(idx), "; ".join(candidates) if candidates else "none"))
+
+    # ColorOS 17 builds vary the local-register count and may use .registers.
+    # This guard only needs an entry return, so don't assume an exact count or
+    # introduce registers that could renumber parameter aliases in the method.
+    try:
+        end = lines.index(".end method", idx[0] + 1)
+    except ValueError:
+        sys.exit("GameGpuControlPanel.onBootCompleted has no .end method")
+    register_directives = [
+        line.strip() for line in lines[idx[0] + 1:end]
+        if line.strip().startswith((".locals ", ".registers "))
+    ]
+    if len(register_directives) != 1:
+        sys.exit("GameGpuControlPanel.onBootCompleted needs one .locals or .registers directive; found %d" %
+                 len(register_directives))
+
+    marker = "# OneOS: no QSPM HAL on this vendor; the wait for it hung android.display."
+    if any(marker in line for line in lines[idx[0]:end]):
+        print("GameGpuControlPanel.onBootCompleted: already skipped", file=sys.stderr)
+        return top_dir(root, path)
+
+    j = idx[0] + 1
+    annotation_depth = 0
+    while j < end:
+        stripped = lines[j].strip()
+        if stripped.startswith((".annotation ", ".subannotation ")):
+            annotation_depth += 1
+        elif annotation_depth and stripped.startswith((".end annotation", ".end subannotation")):
+            annotation_depth -= 1
+        elif not annotation_depth and stripped and not stripped.startswith((".", "#")):
+            break
         j += 1
+    if j >= end:
+        sys.exit("GameGpuControlPanel.onBootCompleted has no executable instruction")
     lines[j:j] = [
         "",
-        "    # OneOS: no QSPM HAL on this vendor; the wait for it hung android.display.",
-        '    const-string v0, "OneOS"',
-        "",
-        '    const-string v1, "GameGpuControlPanel.onBootCompleted skipped"',
-        "",
-        "    invoke-static {v0, v1}, Landroid/util/Slog;->w(Ljava/lang/String;Ljava/lang/String;)I",
-        "",
+        "    " + marker,
         "    return-void",
         "",
     ]
-    open(path, "w").write("\n".join(lines))
+    with open(path, "w", encoding="utf-8", newline="\n") as output:
+        output.write("\n".join(lines))
     print("GameGpuControlPanel.onBootCompleted: skipped", file=sys.stderr)
     return top_dir(root, path)
 

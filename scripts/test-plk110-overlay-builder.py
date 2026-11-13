@@ -26,6 +26,15 @@ class Plk110OverlayBuilderTest(unittest.TestCase):
         self.assertIn('sh "$ROOT/scripts/make-overlays.sh"', BUILDER)
         self.assertIn("Refusing to reuse an existing output path", BUILDER)
 
+    def test_builder_requires_guest_vold_isolation_outputs(self):
+        required = BUILDER.split("for name in ", 1)[1].split("; do", 1)[0]
+        self.assertIn("vold_patched", required)
+        self.assertIn("service.incremental_patched.so", required)
+
+    def test_unknown_vold_build_reports_full_crashrecovery_hash(self):
+        overlay_builder = (ROOT / "scripts/make-overlays.sh").read_text()
+        self.assertIn('sha(d) if d else "missing"', overlay_builder)
+
     def test_apktool_is_pinned_and_the_action_does_not_upload_the_source_image(self):
         self.assertIn("apktool_3.0.3.jar", WORKFLOW)
         self.assertIn("dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423", WORKFLOW)

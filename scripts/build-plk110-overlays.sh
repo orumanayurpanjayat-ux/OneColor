@@ -90,7 +90,7 @@ APKTOOL="$APKTOOL" DEBUGFS="$DEBUGFS" sh "$ROOT/scripts/make-overlays.sh" "$IMG"
 
 # These files are required for this set's guest startup and cross-system
 # safeguards. Optional camera and UI overlays are recorded in the manifest.
-for name in services_patched.jar oplus-services_patched.jar framework_patched.jar guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img; do
+for name in services_patched.jar oplus-services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img; do
     [[ -s "$OUT/$name" ]] || { echo "PLK110 patch build did not produce required $name" >&2; exit 3; }
 done
 

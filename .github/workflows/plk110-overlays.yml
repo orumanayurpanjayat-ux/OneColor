@@ -8,7 +8,9 @@ on:
       - '.github/workflows/plk110-overlays.yml'
       - 'scripts/build-plk110-overlays.sh'
       - 'scripts/test-plk110-overlay-builder.py'
+      - 'scripts/test-oplus-boot-hangs.py'
       - 'scripts/make-overlays.sh'
+      - 'switcher/patches/oplus_boot_hangs.py'
       - 'switcher/patches/**'
   workflow_dispatch:
 
@@ -80,6 +82,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           python3 scripts/test-plk110-overlay-builder.py
+          python3 scripts/test-oplus-boot-hangs.py
           bash -n scripts/build-plk110-overlays.sh
 
       - name: Build overlays from PLK110 image
