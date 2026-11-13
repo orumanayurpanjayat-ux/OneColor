@@ -1702,13 +1702,60 @@ if [ "$(stat -c %d:%i "$ROOTFS/system/framework/services.jar")" != "$(stat -c %d
     echo "ERROR: the guarded services.jar is not in place; not starting the guest"
     exit 3
 fi
+# Apply a patch to a copy only when both complete file hashes match. This keeps
+# a patch for one OEM build from ever being bound over a different guest image.
+oneos_patch_binary() {
+    _sf_src=$1 _sf_dst=$2 _sf_source_sha=$3 _sf_output_sha=$4 _sf_offset=$5 _sf_bytes=$6
+    _sf_actual=$(sha256sum "$_sf_src" 2>/dev/null | cut -d' ' -f1)
+    [ "$_sf_actual" = "$_sf_source_sha" ] || {
+        echo "ERROR: SurfaceFlinger patch source hash mismatch (expected $_sf_source_sha, got ${_sf_actual:-unreadable})"
+        return 1
+    }
+    if [ -L "$_sf_dst" ] || { [ -e "$_sf_dst" ] && [ ! -f "$_sf_dst" ]; }; then
+        echo "ERROR: refusing unexpected SurfaceFlinger patch destination: $_sf_dst"
+        return 1
+    fi
+    "$BB" rm -f "$_sf_dst" || return 1
+    "$BB" cp "$_sf_src" "$_sf_dst" || return 1
+    printf '%b' "$_sf_bytes" | "$BB" dd of="$_sf_dst" bs=1 seek="$_sf_offset" count=4 conv=notrunc 2>/dev/null || {
+        "$BB" rm -f "$_sf_dst"
+        echo "ERROR: could not write the guarded SurfaceFlinger patch"
+        return 1
+    }
+    _sf_actual=$(sha256sum "$_sf_dst" 2>/dev/null | cut -d' ' -f1)
+    if [ "$_sf_actual" != "$_sf_output_sha" ]; then
+        "$BB" rm -f "$_sf_dst"
+        echo "ERROR: SurfaceFlinger patch output hash mismatch (expected $_sf_output_sha, got ${_sf_actual:-unreadable})"
+        return 1
+    fi
+    "$BB" chmod 0755 "$_sf_dst" || return 1
+}
+
+# PLK110 ColorOS 17: keep its own 7.3 MB SurfaceFlinger and skip only the QTI
+# extension-client call whose Samsung composer cannot handle. These exact input
+# and output hashes were verified from the user's PLK110 image; unlike the X9U
+# package binary, this one has PLK110's own linker imports and service ABI.
+SESSION_SET=$("$BB" awk -F'"' '$2 == "set" { print $4; exit }' "$STAGE/session/current.json" 2>/dev/null)
+GUEST_SF_PATCHED="$STAGE/surfaceflinger_patched"
+if [ "$SESSION_SET" = "coloros17-plk110-sultra" ]; then
+    GUEST_SF_PATCHED="$STAGE/session/surfaceflinger_patched"
+    if ! oneos_patch_binary "$ROOTFS/system/bin/surfaceflinger" "$GUEST_SF_PATCHED" \
+        46440a04787d42484b134fd2feed559822daa4a93d9428a3f7078616ab57f93c \
+        05d5fc761bf3556d97e59b6185686760545ef0b08847633b550ee03475fbfd5a \
+        4655240 '\023\000\000\024'; then
+        echo "ERROR: PLK110 SurfaceFlinger could not be safely patched; not starting the guest"
+        exit 3
+    fi
+    echo "PLK110 SurfaceFlinger: image-matched QTI composer fallback patch ready (0x470888)"
+fi
+
 # Patched guest surfaceflinger (no Qualcomm composer extension client; see
 # scripts/make-overlays.sh). Inside the container only.
-if [ -f "$STAGE/surfaceflinger_patched" ] && [ "${ONEOS_STOCK_SF:-0}" != "1" ]; then
-    chmod 755 "$STAGE/surfaceflinger_patched"
+if [ -f "$GUEST_SF_PATCHED" ] && [ "${ONEOS_STOCK_SF:-0}" != "1" ]; then
+    chmod 755 "$GUEST_SF_PATCHED"
     $BB umount -l "$ROOTFS/system/bin/surfaceflinger" 2>/dev/null || true
-    $BB mount --bind "$STAGE/surfaceflinger_patched" "$ROOTFS/system/bin/surfaceflinger"
-    echo "Bound surfaceflinger_patched -> $ROOTFS/system/bin/surfaceflinger"
+    $BB mount --bind "$GUEST_SF_PATCHED" "$ROOTFS/system/bin/surfaceflinger"
+    echo "Bound $GUEST_SF_PATCHED -> $ROOTFS/system/bin/surfaceflinger"
 fi
 # Pixel Fold's device state policy without tent mode (scripts/patch-yogi-tent.py):
 # it keeps the cover on until the hinge passes 90 degrees whenever it guesses a

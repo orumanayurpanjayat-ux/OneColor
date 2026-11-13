@@ -1101,6 +1101,19 @@ class StageScriptTest {
         refused(s.launch(), "not its file set for f8u")
     }
 
+    @Test
+    fun plk110DoesNotReceiveTheFindX9uSurfaceFlingerBinary() = eachShell { fr ->
+        val profile = Profiles.S_ULTRA_8650
+        fr.props["ro.product.model"] = "SM-S928B"
+        fr.props["ro.product.device"] = profile.codename
+        fr.props["ro.soc.model"] = profile.socModel
+        fr.writeProps()
+        val plk = Stager(fr, profile, Images.ID_COLOROS17_PLK110)
+        assertFalse("PLK110 package set must build SurfaceFlinger from its own image", "surfaceflinger_patched" in plk.set.names)
+        ok(plk.begin())
+        refused(plk.receive("surfaceflinger_patched", "wrong-image-binary".toByteArray()), "not a file of coloros17-plk110-sultra")
+    }
+
     /** A 0.3.2 stage (oneos.stage/1, no set) stays OneOS's: an unfinished session is restored first, never trusted away. */
     @Test
     fun anOlderStageIsStillOursForKeepAndRecover() = eachShell { fr ->

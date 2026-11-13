@@ -1050,15 +1050,20 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
 # skip IQtiComposer3Client::fromBinder) becomes "b 0x470c14"; SurfaceFlinger
 # then takes its own "Failed to get QtiComposer3Client service" fallback.
 # Code segment: file offset == vaddr (LOAD 0x1d0000). Only for the exact builds
-# below: the Find N6 and Find X9 Ultra CN images share one binary; the Find X9
+# below. The Find N6 and Find X9 Ultra CN images share one binary; the Find X9
 # Ultra IN image (CPH2841IN) has the same code 0x5b0 later (0x471178, after
 # AIBinder_getExtension, before IQtiComposer3Client::fromBinder), same bytes.
+# PLK110 ColorOS 17 (system.img SHA-256 43593ee6…): its own binary has the same
+# guard and fallback at 0x470888, but must not be replaced by the X9U executable.
 "$DEBUGFS" -R "dump /system/bin/surfaceflinger $WORK/surfaceflinger" "$IMG" 2>/dev/null
 python3 -I - "$WORK/surfaceflinger" "$OUT/surfaceflinger_patched" <<'PYEOF'
 import hashlib, os, sys
 src, dst = sys.argv[1], sys.argv[2]
 data = bytearray(open(src, "rb").read())
 SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
+         # PLK110 ColorOS 17: 0x470880 calls AIBinder_getExtension; at 0x470888
+         # cbz x8 skips IQtiComposer3Client::fromBinder and joins its fallback at 0x4708d4.
+         "e824806ecec5": 0x470888,
          # Nothing OS 5.0 (Metroid, SDK 37): same three instructions, at 0x452a50
          # (bl AIBinder_getExtension, ldr x8, cbz x8 -> +0x4c, bl IQtiComposer3Client::fromBinder).
          "e5a8726a6687": 0x452a50,

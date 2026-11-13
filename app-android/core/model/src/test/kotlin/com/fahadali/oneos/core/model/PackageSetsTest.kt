@@ -32,11 +32,15 @@ class PackageSetsTest {
         assertEquals(setOf("GlobalVerifiedAddons.tar"), customHashes.keys - sharedHashes.keys)
     }
 
-    @Test fun plk110SetIsImageBoundButReusesOnlyTheRequestedX9uPins() {
-        assertEquals(xin.files, plk.files)
-        assertEquals(ShaList.parse(shas(xin)).entries, ShaList.parse(shas(plk)).entries)
+    @Test fun plk110SetUsesItsOwnSurfaceFlingerBinary() {
+        assertEquals(xin.files.filterNot { it.name == "surfaceflinger_patched" }, plk.files)
+        assertEquals(
+            ShaList.parse(shas(xin)).entries - "surfaceflinger_patched",
+            ShaList.parse(shas(plk)).entries,
+        )
         assertEquals(guards(xin), guards(plk))
         assertTrue(xin.imageId != plk.imageId)
+        assertFalse(plk.files.any { it.name == "surfaceflinger_patched" })
         assertTrue(shas(plk).contains("not been tested on the PLK110 image"))
     }
 
@@ -58,8 +62,8 @@ class PackageSetsTest {
         assertEquals(Images.ID_FIND_X9U_IN, xin.imageId)
         assertEquals("out/overlays_x9u_in_r70", plk.sourceDir)
         assertEquals(Images.ID_COLOROS17_PLK110, plk.imageId)
-        assertEquals(xin.files, plk.files)
-        assertEquals(xin.approxBytes, plk.approxBytes)
+        assertEquals(xin.files.filterNot { it.name == "surfaceflinger_patched" }, plk.files)
+        assertEquals(xin.approxBytes - 7_343_928L, plk.approxBytes)
         assertEquals("out/overlays_pixel_f8u_r17", pixel.sourceDir)
         assertEquals(
             listOf(PackageSets.N6_GLOBAL_F8, n6, xin, plk, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,

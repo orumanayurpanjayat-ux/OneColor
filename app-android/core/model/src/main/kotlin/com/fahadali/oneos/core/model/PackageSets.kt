@@ -304,10 +304,12 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    /** Exact X9U-IN package pins, exposed as a distinct image-bound set for the experimental PLK110 GSI. */
+    /** X9U-IN package pins adapted to the PLK110 image; its SurfaceFlinger is patched from its own binary at session start. */
     val COLOROS17_PLK110_SULTRA = X9U_IN_SULTRA.copy(
         id = ID_COLOROS17_PLK110_SULTRA,
         imageId = Images.ID_COLOROS17_PLK110,
+        files = X9U_IN_SULTRA.files.filterNot { it.name == "surfaceflinger_patched" },
+        approxBytes = X9U_IN_SULTRA.approxBytes - 7_343_928L,
     )
 
     /** The Pixel sets' files (root's SET_PIXEL): the same for every Pixel image. */
