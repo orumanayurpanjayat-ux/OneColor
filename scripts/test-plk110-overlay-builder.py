@@ -8,6 +8,7 @@ BUILDER = (ROOT / "scripts/build-plk110-overlays.sh").read_text()
 WORKFLOW = (ROOT / ".github/workflows/plk110-overlays.yml").read_text()
 PATCH_NOTE = (ROOT / "docs/patch-notes/2026-11-13-plk110-coloros-gsi.md").read_text()
 PATCH_BUILT_JAR = (ROOT / "scripts/patch-built-jar.sh").read_text()
+CRASHRECOVERY_INSPECTOR = (ROOT / "scripts/inspect-plk110-crashrecovery.py").read_text()
 
 
 class Plk110OverlayBuilderTest(unittest.TestCase):
@@ -35,6 +36,13 @@ class Plk110OverlayBuilderTest(unittest.TestCase):
     def test_unknown_vold_build_reports_full_crashrecovery_hash(self):
         overlay_builder = (ROOT / "scripts/make-overlays.sh").read_text()
         self.assertIn('sha(d) if d else "missing"', overlay_builder)
+
+    def test_pinned_plk_crashrecovery_apex_is_inspected_before_allowlisting(self):
+        self.assertIn("inspect-plk110-crashrecovery.py", BUILDER)
+        self.assertIn("05d8d921185130d88388b417387bbc0ba74281251b0d5188dae16953b82481d2", CRASHRECOVERY_INSPECTOR)
+        self.assertIn("RescueParty.isDisabled()Z", CRASHRECOVERY_INSPECTOR)
+        self.assertIn("RecoverySystem;->rebootPromptAndWipeUserData", CRASHRECOVERY_INSPECTOR)
+        self.assertIn("PLK110 CRASHRECOVERY SAFETY INSPECTION", WORKFLOW)
 
     def test_patch_built_jar_runs_pinned_apktool_jar_through_java(self):
         self.assertIn('run_apktool() { java -jar "$APKTOOL" "$@"; }', PATCH_BUILT_JAR)

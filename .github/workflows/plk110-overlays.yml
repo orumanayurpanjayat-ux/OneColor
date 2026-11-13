@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/plk110-overlays.yml'
       - 'scripts/build-plk110-overlays.sh'
+      - 'scripts/inspect-plk110-crashrecovery.py'
       - 'scripts/test-plk110-overlay-builder.py'
       - 'scripts/test-oplus-boot-hangs.py'
       - 'scripts/make-overlays.sh'
@@ -107,6 +108,13 @@ jobs:
             echo '### PLK110 builder diagnostics'
             echo
             if [[ -s "$RUNNER_TEMP/plk110-builder.log" ]]; then
+              if grep -q 'BEGIN PLK110 CRASHRECOVERY SAFETY INSPECTION' "$RUNNER_TEMP/plk110-builder.log"; then
+                echo '#### PLK110 crashrecovery safety inspection'
+                echo '```text'
+                sed -n '/BEGIN PLK110 CRASHRECOVERY SAFETY INSPECTION/,/END PLK110 CRASHRECOVERY SAFETY INSPECTION/p' "$RUNNER_TEMP/plk110-builder.log"
+                echo '```'
+                echo
+              fi
               echo '#### Last 160 builder log lines'
               echo '```text'
               tail -n 160 "$RUNNER_TEMP/plk110-builder.log"

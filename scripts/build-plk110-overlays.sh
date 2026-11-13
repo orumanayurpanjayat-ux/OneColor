@@ -85,6 +85,8 @@ with open(sys.argv[1], "rb") as image:
 PYEOF
 "$DEBUGFS" -R stats "$IMG" >/dev/null 2>&1 || { echo 'debugfs could not read the PLK110 system image.' >&2; exit 2; }
 
+python3 "$ROOT/scripts/inspect-plk110-crashrecovery.py" "$IMG" "$DEBUGFS" "$APKTOOL"
+
 echo "Building image-aware overlays from PLK110 system.img ($IMAGE_SHA)"
 APKTOOL="$APKTOOL" DEBUGFS="$DEBUGFS" sh "$ROOT/scripts/make-overlays.sh" "$IMG" "$OUT"
 

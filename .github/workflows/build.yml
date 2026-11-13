@@ -158,6 +158,7 @@ jobs:
           test -s scripts/test-plk110-surfaceflinger.py
           test -s scripts/test-plk110-overlay-builder.py
           test -s scripts/test-oplus-boot-hangs.py
+          test -s scripts/inspect-plk110-crashrecovery.py
           test -s scripts/build-plk110-overlays.sh
           test -s scripts/test-secondary-log-fixes.py
           test -s scripts/test-host-apex-bind.py
