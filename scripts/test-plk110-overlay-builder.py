@@ -33,6 +33,12 @@ class Plk110OverlayBuilderTest(unittest.TestCase):
         self.assertIn("overlays/**", WORKFLOW)
         self.assertNotIn("system.img", WORKFLOW.split("actions/upload-artifact@v7", 1)[1])
 
+    def test_builder_failure_context_is_published_even_when_patch_build_fails(self):
+        self.assertIn("Publish PLK110 builder diagnostics", WORKFLOW)
+        self.assertIn("if: always()", WORKFLOW)
+        self.assertIn("tail -n 160", WORKFLOW)
+        self.assertIn("df -h", WORKFLOW)
+
     def test_documentation_marks_the_x9_payload_reuse_as_the_previous_state(self):
         self.assertIn("were built from the Find X9 Ultra IN image", PATCH_NOTE)
 

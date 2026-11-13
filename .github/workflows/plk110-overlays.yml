@@ -94,6 +94,28 @@ jobs:
           echo >> "$GITHUB_STEP_SUMMARY"
           cat "$OUT/plk110-overlays.sha256" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Publish PLK110 builder diagnostics
+        if: always()
+        run: |
+          set -Eeuo pipefail
+          {
+            echo '### PLK110 builder diagnostics'
+            echo
+            if [[ -s "$RUNNER_TEMP/plk110-builder.log" ]]; then
+              echo '#### Last 160 builder log lines'
+              echo '```text'
+              tail -n 160 "$RUNNER_TEMP/plk110-builder.log"
+              echo '```'
+            else
+              echo 'The builder log was not created.'
+            fi
+            echo
+            echo '#### Runner disk space'
+            echo '```text'
+            df -h "$RUNNER_TEMP" || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload PLK110 overlay build
         uses: actions/upload-artifact@v7
         with:
