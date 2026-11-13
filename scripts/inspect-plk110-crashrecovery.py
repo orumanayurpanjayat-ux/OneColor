@@ -39,6 +39,16 @@ def method_block(lines, signature, label):
     return lines[start:end + 1]
 
 
+def method_blocks(lines):
+    start = None
+    for index, line in enumerate(lines):
+        if line.startswith(".method "):
+            start = index
+        elif start is not None and line == ".end method":
+            yield lines[start:index + 1]
+            start = None
+
+
 def inspect(image, debugfs, apktool):
     with tempfile.TemporaryDirectory(prefix="oneos-plk110-rescueparty-") as temporary:
         work = Path(temporary)
@@ -73,8 +83,13 @@ def inspect(image, debugfs, apktool):
         disabled = method_block(rescue_lines, "isDisabled()Z", "RescueParty.isDisabled()Z")
 
         call_sites = []
+        scheduler_methods = []
         for source in decoded.rglob("*.smali"):
             lines = source.read_text(encoding="utf-8").splitlines()
+            for block in method_blocks(lines):
+                text = "\n".join(block)
+                if "RescueParty;->isDisabled()Z" in text or "RescueParty$1;-><init>" in text:
+                    scheduler_methods.append((source.relative_to(decoded), block))
             for index, line in enumerate(lines):
                 if "RecoverySystem;->rebootPromptAndWipeUserData" not in line:
                     continue
@@ -86,6 +101,10 @@ def inspect(image, debugfs, apktool):
                 call_sites.append((source.relative_to(decoded), lines[start:end + 1]))
         if not call_sites:
             raise SystemExit("no RescueParty factory-reset call reaches RecoverySystem.rebootPromptAndWipeUserData")
+        if not any("RescueParty;->isDisabled()Z" in "\n".join(block) for _, block in scheduler_methods):
+            raise SystemExit("no crash-recovery method invokes RescueParty.isDisabled()Z")
+        if not any("RescueParty$1;-><init>" in "\n".join(block) for _, block in scheduler_methods):
+            raise SystemExit("no crash-recovery method schedules the factory-reset runnable")
 
         print("===== BEGIN PLK110 CRASHRECOVERY SAFETY INSPECTION =====")
         print(f"AOSP crashrecovery APEX SHA-256: {digest}")
@@ -93,6 +112,9 @@ def inspect(image, debugfs, apktool):
         print(f"Source: {rescue_files[0].relative_to(decoded)}")
         print("RescueParty.isDisabled()Z:")
         print("\n".join(disabled))
+        for source, block in scheduler_methods:
+            print(f"RescueParty guard or factory-reset scheduler: {source}")
+            print("\n".join(block))
         for source, block in call_sites:
             print(f"Factory-reset call site: {source}")
             print("\n".join(block))

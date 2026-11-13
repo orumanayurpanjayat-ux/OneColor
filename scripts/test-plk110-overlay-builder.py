@@ -62,6 +62,22 @@ class Plk110OverlayBuilderTest(unittest.TestCase):
         method = INSPECTOR.method_block(lines, "isDisabled()Z", "RescueParty.isDisabled()Z")
         self.assertEqual(method[0], ".method private static isDisabled()Z")
 
+    def test_inspector_reports_guard_callers_and_factory_reset_scheduler(self):
+        sample = [
+            ".method private static trigger()V",
+            "    invoke-static {}, Lcom/android/server/RescueParty;->isDisabled()Z",
+            "    new-instance v0, Lcom/android/server/RescueParty$1;",
+            "    invoke-direct {v0}, Lcom/android/server/RescueParty$1;-><init>()V",
+            ".end method",
+            ".method public run()V",
+            "    invoke-static {}, Landroid/os/RecoverySystem;->rebootPromptAndWipeUserData()V",
+            ".end method",
+        ]
+        blocks = list(INSPECTOR.method_blocks(sample))
+        self.assertEqual(len(blocks), 2)
+        self.assertIn("RescueParty;->isDisabled()Z", "\n".join(blocks[0]))
+        self.assertIn("RescueParty$1;-><init>", "\n".join(blocks[0]))
+
     def test_patch_built_jar_runs_pinned_apktool_jar_through_java(self):
         self.assertIn('run_apktool() { java -jar "$APKTOOL" "$@"; }', PATCH_BUILT_JAR)
         self.assertIn("java\\ -jar\\ *)", PATCH_BUILT_JAR)
