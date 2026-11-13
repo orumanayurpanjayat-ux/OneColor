@@ -62,7 +62,7 @@ open class SystemsActivity : ToolbarActivity() {
     private var pickFor: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        pick = registerForActivityResult(SystemsNav.OpenGz()) { uri -> if (uri != null) picked(uri) }
+        pick = registerForActivityResult(SystemsNav.OpenSystemImage()) { uri -> if (uri != null) picked(uri) }
         pickFor = savedInstanceState?.getString(KEY_PICK_FOR)
         super.onCreate(savedInstanceState)
         ArtworkTransitions.prepare(this)
@@ -153,13 +153,13 @@ internal object SystemsNav {
         }
     }
 
-    /** ACTION_OPEN_DOCUMENT for the .img.gz (any type: providers label .gz differently), as the OS image page. */
-    class OpenGz : ActivityResultContract<Unit, Uri?>() {
+    /** ACTION_OPEN_DOCUMENT for .img or .img.gz, as the local GSI page. */
+    class OpenSystemImage : ActivityResultContract<Unit, Uri?>() {
         override fun createIntent(context: Context, input: Unit): Intent =
             Intent(Intent.ACTION_OPEN_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE)
                 .setType("*/*")
-                .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/gzip", "application/x-gzip", "application/octet-stream", "*/*"))
+                .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/gzip", "application/x-gzip", "application/x-android-disk-image", "application/octet-stream", "*/*"))
 
         override fun parseResult(resultCode: Int, intent: Intent?): Uri? = if (resultCode == Activity.RESULT_OK) intent?.data else null
     }

@@ -13,7 +13,7 @@
     <string name="advanced_title">Settings</string>
     <string name="advanced_card_system">Setup and space</string>
     <string name="advanced_setup_summary">Set it up again, keeping its apps and data or starting fresh</string>
-    <string name="advanced_file_summary">Pick the file you downloaded and check it</string>
+    <string name="advanced_file_summary">Choose and verify a local system image</string>
     <string name="advanced_space_summary">Old copies of systems you set up before</string>
     <string name="advanced_space_free">%1$s free</string>
     <string name="advanced_space_none">%1$s free · no old copies</string>
@@ -160,19 +160,21 @@
     <string name="last_details_summary">Session ID, how it ended in detail, what the logs said</string>
     <string name="last_details_image">Image %1$s</string>
 
-    <!-- Use a downloaded file (ImageActivity); "File details and checks" from the OneOS team's entry -->
-    <string name="image_title">Use a downloaded file</string>
+    <!-- Custom GSI file selection (ImageActivity); only an image with a matching verified patch set can be prepared. -->
+    <string name="image_title">Load custom GSI</string>
     <string name="image_title_team">File details and checks</string>
     <string name="image_no_profile_title">No system for this phone yet</string>
     <string name="image_no_profile_summary">This version of OneOS has none for this phone. Phone details, in Settings › For the OneOS team, shows why.</string>
     <string name="image_cat_file">Your file</string>
-    <string name="image_pick_summary">Opens your files. OneOS reads only the file you pick.</string>
+    <string name="image_pick_summary">Choose a local .img or .img.gz. OneOS verifies the whole image and uses only its matching patch set.</string>
     <string name="image_not_used">%1$s · not used: setup reuses the system already on this phone</string>
     <string name="image_file_ok">It\'s %1$s for this phone</string>
     <string name="image_check_title">Check the file</string>
-    <string name="image_check_summary">Reads the whole file to make sure it isn\'t damaged. Takes a minute or two.</string>
+    <string name="image_check_summary">Reads the whole file before setup. Larger images can take longer.</string>
     <string name="image_checking">Checking the file… %1$d%%</string>
+    <string name="image_checking_unknown">Checking the file…</string>
     <string name="image_checking_bytes">%1$s of %2$s</string>
+    <string name="image_checking_unknown_bytes">%1$s read</string>
     <string name="image_use_gz_title">Use this file instead</string>
     <string name="image_use_gz_summary">Setup then uses this file, not the system already on this phone</string>
     <string name="image_forget_summary">OneOS stops using it. The file stays in your files.</string>
@@ -191,7 +193,7 @@
     <string name="image_on_phone_aside">It can\'t be reused</string>
     <string name="image_on_phone_aside_summary">Its apps and data are from another system or an older version, so setup keeps them as an old copy and needs the download. Pick the file above.</string>
     <string name="image_takes_title">Systems for your %1$s</string>
-    <string name="image_takes_summary">Get one from Choose a system (Download), then pick the file above.</string>
+    <string name="image_takes_summary">Pick an image that matches one of the verified systems below. OneOS uses only the patch set built for that exact image.</string>
     <string name="image_choice_sizes">%1$s download · %2$s once set up</string>
     <string name="image_details_summary">File names, sizes and what the checks found</string>
     <string name="image_details_file">%1$s\n%2$s, unpacks to %3$s. %4$s.</string>

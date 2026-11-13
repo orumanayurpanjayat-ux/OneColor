@@ -48,7 +48,7 @@ internal object ImageHash {
     }
 }
 
-/** Check file: the SHA-256 and size of the picked .gz (no root; the app reads it through the picker's grant). */
+/** Check file: the SHA-256 and size of the picked image (no root; read through the picker's grant). */
 object ImageCheckJob : BackgroundJob<ImageCheckJob.State>(State(), "oneos-image") {
     data class State(
         val busy: Boolean = false,

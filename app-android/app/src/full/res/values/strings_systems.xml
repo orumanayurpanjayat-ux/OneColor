@@ -32,10 +32,10 @@
     <string name="systems_show_progress">Show progress</string>
     <string name="systems_pick_other">That file is %1$s.</string>
     <string name="systems_size_unknown_title">Check this file first</string>
-    <string name="systems_size_unknown_line">Your files app didn\'t say how big it is. Check it in Use a downloaded file; it takes a minute or two.</string>
+    <string name="systems_size_unknown_line">Your files app didn\'t say how big it is. Check it in Load custom GSI; it takes a minute or two.</string>
     <string name="systems_open_file_page">Check the file</string>
-    <string name="systems_more_title">Use a downloaded file</string>
-    <string name="systems_more_summary">Check a file, or use a system already on this phone</string>
+    <string name="systems_more_title">Load custom GSI</string>
+    <string name="systems_more_summary">Pick and verify a local .img or .img.gz, or use a system already on this phone</string>
     <string name="systems_close">Close</string>
 
     <!-- Setting up -->

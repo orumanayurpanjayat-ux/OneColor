@@ -168,6 +168,30 @@ class ImagesTest {
     }
 
     @Test
+    fun rawLocalGsiMustMatchThePinnedImageHash() {
+        val rawName = xin.gzName.removeSuffix(".gz")
+        val needsCheck = id(ImageFileCheck(rawName, xin.rawBytes))
+        assertEquals(ImageState.UNCOMPRESSED, needsCheck.state)
+        assertEquals(ImageIdentifier.R_UNCOMPRESSED, needsCheck.finding.reason)
+
+        val verified = id(ImageFileCheck(rawName, xin.rawBytes, xin.rawSha256, xin.rawBytes))
+        assertEquals(ImageState.VERIFIED, verified.state)
+        assertEquals(xin, verified.image)
+        assertEquals(PackageSets.ID_X9U_IN_SULTRA, Profiles.S_ULTRA_8850.choice(xin.id)?.packageSetId)
+
+        val unknownSize = id(ImageFileCheck(rawName, null))
+        assertEquals(ImageState.UNKNOWN, unknownSize.state)
+        assertEquals(ImageIdentifier.R_SIZE_UNKNOWN, unknownSize.finding.reason)
+        val checkedUnknownSize = id(ImageFileCheck(rawName, null, xin.rawSha256, xin.rawBytes))
+        assertEquals(ImageState.VERIFIED, checkedUnknownSize.state)
+        assertEquals(xin, checkedUnknownSize.image)
+
+        val changed = id(ImageFileCheck(rawName, xin.rawBytes, "0".repeat(64), xin.rawBytes))
+        assertEquals(ImageState.DAMAGED, changed.state)
+        assertEquals(ImageIdentifier.R_DAMAGED, changed.finding.reason)
+    }
+
+    @Test
     fun wrongHashOrTruncatedIsDamaged() {
         val badHash = id(ImageFileCheck("x.img.gz", xin.gzBytes, "0".repeat(64), xin.gzBytes))
         assertEquals(ImageState.DAMAGED, badHash.state)
@@ -229,9 +253,9 @@ class ImagesTest {
                 x9uOnFold.finding.detail,
             )
         }
-        // The unpacked image of one the phone does not take: what it takes, not that image's .gz.
+        // An unpacked image from another phone is identified and refused.
         val rawN6OnS25 = ImageIdentifier.identify(ImageFileCheck("n6.img", n6.rawBytes), Profiles.S_ULTRA_8750)
-        assertEquals(ImageState.UNCOMPRESSED, rawN6OnS25.state)
+        assertEquals(ImageState.WRONG_FOR_PHONE, rawN6OnS25.state)
         assertTrue(rawN6OnS25.finding.detail.contains("Galaxy S25 Ultra takes"))
     }
 

@@ -308,12 +308,13 @@ object Plain {
         return when (f.reason) {
             // Setting up: the picked file.
             SwitchGates.R_IMAGE_NONE -> m("Choose a system first", "Pick the system you want to set up.", FixAction.CHOOSE_SYSTEM)
-            ImageIdentifier.R_DAMAGED -> m("The download is damaged", "It may not have finished. Download $system again.", FixAction.DOWNLOAD_AGAIN)
+            ImageIdentifier.R_DAMAGED -> m("This image file doesn't match", "It may be incomplete or another build. Get the supported $system image again.", FixAction.DOWNLOAD_AGAIN)
             ImageIdentifier.R_WRONG_PHONE -> m("That file is for another phone", "Choose the file you downloaded for $yourPhone.", FixAction.CHOOSE_FILE)
-            ImageIdentifier.R_UNCOMPRESSED, ImageIdentifier.R_NOT_OURS, ImageIdentifier.R_SIZE_UNKNOWN ->
-                m("That isn't a OneOS system file", "Choose the file you downloaded for $system.", FixAction.CHOOSE_FILE)
+            ImageIdentifier.R_UNCOMPRESSED -> m("Check this image first", "OneOS checks it against the supported system before setup.", FixAction.NONE)
+            ImageIdentifier.R_NOT_OURS -> m("This image isn't supported yet", "OneOS needs a matching patch set for this exact build. Pick a supported system instead.", FixAction.CHOOSE_SYSTEM)
+            ImageIdentifier.R_SIZE_UNKNOWN -> m("Couldn't identify this file", "Choose a system image with a verified OneOS patch set.", FixAction.CHOOSE_FILE)
             ImageIdentifier.R_RETIRED -> m("OneOS no longer sets up that system", "Choose the file you downloaded for $system.", FixAction.CHOOSE_FILE)
-            ImageIdentifier.R_NOT_CHECKED -> m("The download isn't checked yet", "OneOS checks it first when you set up $system.", FixAction.NONE)
+            ImageIdentifier.R_NOT_CHECKED -> m("Check this image first", "OneOS checks it before setup.", FixAction.NONE)
             // An older build of the system, or none (0.4.38's full Find X9 Ultra image): setup simply
             // replaces it, which "can't be used" made sound like a fault (a Flip5 tester asked).
             ImageIdentifier.R_NO_RAW, ImageIdentifier.R_RAW_NOT_OURS ->
@@ -440,7 +441,7 @@ object Plain {
             )
             "sha-256 differs" in p || "the .gz has" in p || "unpacked to" in p || "unpacks to more" in p ||
                 "not an ext4 image" in p || "corrupt" in p || "crc" in p || "unexpected end" in p ->
-                PlainMessage("The download is damaged", "It may not have finished. Download $system again.", FixAction.DOWNLOAD_AGAIN, defaultLabel(FixAction.DOWNLOAD_AGAIN))
+                PlainMessage("This image file doesn't match", "It may be incomplete or another build. Get the supported $system image again.", FixAction.DOWNLOAD_AGAIN, defaultLabel(FixAction.DOWNLOAD_AGAIN))
             "ioexception" in p || "could not read" in p || "cannot open the picked file" in p -> PlainMessage(
                 "Couldn't read the download", "Choose the file again.", FixAction.CHOOSE_FILE, defaultLabel(FixAction.CHOOSE_FILE),
             )

@@ -35,9 +35,9 @@ import java.util.zip.GZIPInputStream
  * again, publishes that check (so Switch and Home show it, not an older one),
  * picks what to do with the stage when the caller did not ([SetupPlan]: keep
  * the same system's apps and data, set another one aside, reuse the system
- * already installed when root vouches for it), hashes the picked .gz itself
- * when Check file has not ("Check the download"; the identity gate still
- * refuses anything but the verified image), then the root script's verbs in
+ * already installed when root vouches for it), hashes the picked .img or .img.gz
+ * itself when Check file has not, then streams it to root (unpacking gzip on
+ * the fly) and verifies the pinned image before using its patch set, then the root script's verbs in
  * order: begin (stage adopted, moved aside or new), the image (the picked
  * .gz unpacked on the fly into `receive system.raw`, or `keep-raw` for the
  * image already on this phone), every session script and file of the
@@ -298,16 +298,17 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
 
         // Sizes for the progress: the hash (when needed), the image, the files.
         val hashNeeded = !onPhone && picked != null && picked.sha256 == null
-        val gzBytes = candidate?.gzBytes ?: picked?.bytes ?: 0L
+        val pickedSize = picked?.check?.let { it.hashedBytes ?: it.bytes }
+        var imageFileBytes = candidate?.let { if (pickedSize == it.rawBytes) it.rawBytes else it.gzBytes } ?: pickedSize ?: 0L
         val set0 = candidate?.let { i -> profile.choice(i.id)?.packageSetId?.let { PackageSets.byId(it) } }
-        update(state.copy(bytesTotal = (if (hashNeeded) gzBytes else 0L) + (if (onPhone) 0L else gzBytes) + (set0?.approxBytes ?: 0L)))
+        update(state.copy(bytesTotal = (if (hashNeeded) imageFileBytes else 0L) + (if (onPhone) 0L else imageFileBytes) + (set0?.approxBytes ?: 0L)))
 
         // 2. "Check the download": the picked .gz hashed here when Check file did not, so the identity gate can pass.
         var base = 0L
         if (hashNeeded) {
             val p = picked
             step(Step.HASH, "Checking the download…")
-            update(state.copy(stepTotal = gzBytes))
+            update(state.copy(stepTotal = imageFileBytes))
             val (sha, n) = try {
                 ImageHash.of(app, p.uri, { cancelled }) { read -> bytes(0, read, stepDone = read) }
             } catch (e: InterruptedException) {
@@ -327,6 +328,8 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         }
         // The image the gates identified decides the set (never another set with it).
         val image = report.image ?: throw Stop("No image for ${profile.label}.")
+        val rawImageFile = !onPhone && picked?.check?.let { (it.hashedBytes ?: it.bytes) == image.rawBytes } == true
+        imageFileBytes = if (rawImageFile) image.rawBytes else image.gzBytes
         update(state.copy(image = image))
         // Guest data stays with the image that made it, and with its own system: never kept for
         // another one (root refuses too). The modes for the image itself, now that it is known.
@@ -350,7 +353,7 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         val files = AppAssets.files(app, set, profile.id)
         val code = BuildConfig.VERSION_CODE.toString()
         val filesBytes = files.sumOf { it.bytes }
-        update(state.copy(bytesTotal = base + (if (onPhone) 0L else image.gzBytes) + filesBytes))
+        update(state.copy(bytesTotal = base + (if (onPhone) 0L else imageFileBytes) + filesBytes))
 
         // 2b. (0.4.41) The set's files this app does not carry, downloaded by hash before the
         // stage is touched: a failed or stopped download leaves the phone as it was.
@@ -434,22 +437,33 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
             verb(app, Step.IMAGE, RootScript.Verb.KEEP_RAW, listOf(image.rawBytes.toString(), image.rawSha256), silenceMs = 15 * 60_000L)
         } else {
             val uri = picked?.uri ?: throw Stop("Pick the image first.")
-            step(Step.IMAGE, "Unpacking the download…")
-            update(state.copy(stepTotal = image.gzBytes))
             val imageBase = base
-            val feed = ImageFeed(app, uri, image) { gz ->
-                // In Double: gz * rawBytes passes Long's range after about 1.2 GB of
-                // a large image's .gz, and the label showed wrong sizes and "?" (2026-10-25).
-                bytes(imageBase, gz, stepDone = gz) {
-                    "${Units.bytes((gz.toDouble() / image.gzBytes * image.rawBytes).toLong())} of ${Units.bytes(image.rawBytes)}"
+            step(Step.IMAGE, if (rawImageFile) "Writing the image…" else "Unpacking the download…")
+            update(state.copy(stepTotal = imageFileBytes))
+            if (rawImageFile) {
+                val feed = RawImageFeed(app, uri, image) { raw ->
+                    bytes(imageBase, raw, stepDone = raw) { "${Units.bytes(raw)} of ${Units.bytes(image.rawBytes)}" }
                 }
+                verb(
+                    app, Step.IMAGE, RootScript.Verb.RECEIVE, listOf(RootScript.RAW_NAME, image.rawBytes.toString(), image.rawSha256), feed,
+                    silenceMs = 15 * 60_000L, totalMs = 3 * 60 * 60_000L,
+                )
+                feed.problem()?.let { throw Stop("The image: $it") }
+            } else {
+                val feed = ImageFeed(app, uri, image) { gz ->
+                    // In Double: gz * rawBytes passes Long's range after about 1.2 GB of
+                    // a large image's .gz, and the label showed wrong sizes and "?" (2026-10-25).
+                    bytes(imageBase, gz, stepDone = gz) {
+                        "${Units.bytes((gz.toDouble() / image.gzBytes * image.rawBytes).toLong())} of ${Units.bytes(image.rawBytes)}"
+                    }
+                }
+                verb(
+                    app, Step.IMAGE, RootScript.Verb.RECEIVE, listOf(RootScript.RAW_NAME, image.rawBytes.toString(), image.rawSha256), feed,
+                    silenceMs = 15 * 60_000L, totalMs = 3 * 60 * 60_000L,
+                )
+                feed.problem()?.let { throw Stop("The image: $it") }
             }
-            verb(
-                app, Step.IMAGE, RootScript.Verb.RECEIVE, listOf(RootScript.RAW_NAME, image.rawBytes.toString(), image.rawSha256), feed,
-                silenceMs = 15 * 60_000L, totalMs = 3 * 60 * 60_000L,
-            )
-            feed.problem()?.let { throw Stop("The image: $it") }
-            base += image.gzBytes
+            base += imageFileBytes
         }
 
         // 5. Scripts and files, each hashed while it streams. (0.4.42) Root first keeps the ones the
@@ -535,6 +549,61 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         }
         out.flush()
         return n
+    }
+
+    /** A raw .img from the picker: validate ext4, byte count and the same pinned raw hash as root. */
+    private class RawImageFeed(
+        private val app: Context,
+        private val uri: Uri,
+        private val image: ImageRef,
+        private val progress: (Long) -> Unit,
+    ) : RootShell.Feed {
+        private val rawMd = MessageDigest.getInstance("SHA-256")
+        private val header = ByteArray(Images.EXT4_MAGIC_OFFSET.toInt() + 2)
+        private var headerBytes = 0
+        private var rawSha256: String? = null
+        var rawBytes = 0L
+
+        override fun write(out: OutputStream) {
+            val src = app.contentResolver.openInputStream(uri) ?: throw IOException("cannot open the picked file")
+            src.use { input ->
+                val buffered = BufferedInputStream(input, 1 shl 20)
+                val buf = ByteArray(1 shl 18)
+                var lastReport = 0L
+                while (true) {
+                    if (cancelled) throw IOException("stopped")
+                    val n = buffered.read(buf)
+                    if (n < 0) break
+                    if (rawBytes + n > image.rawBytes) throw IOException("the image is larger than ${image.rawBytes} bytes")
+                    if (headerBytes < header.size) {
+                        val take = minOf(n, header.size - headerBytes)
+                        System.arraycopy(buf, 0, header, headerBytes, take)
+                        headerBytes += take
+                        if (headerBytes == header.size) {
+                            val magic = (header[Images.EXT4_MAGIC_OFFSET.toInt()].toInt() and 0xff) or
+                                ((header[Images.EXT4_MAGIC_OFFSET.toInt() + 1].toInt() and 0xff) shl 8)
+                            if (magic != Images.EXT4_MAGIC) throw IOException("not an ext4 image")
+                        }
+                    }
+                    rawMd.update(buf, 0, n)
+                    rawBytes += n
+                    out.write(buf, 0, n)
+                    if (rawBytes - lastReport > 64L * 1024 * 1024) {
+                        lastReport = rawBytes
+                        progress(rawBytes)
+                    }
+                }
+                out.flush()
+                rawSha256 = Hashes.hex(rawMd.digest())
+                progress(rawBytes)
+            }
+        }
+
+        fun problem(): String? = when {
+            rawBytes != image.rawBytes -> "the .img has $rawBytes bytes, not ${image.rawBytes}"
+            rawSha256 != image.rawSha256 -> "the .img SHA-256 differs"
+            else -> null
+        }
     }
 
     /**

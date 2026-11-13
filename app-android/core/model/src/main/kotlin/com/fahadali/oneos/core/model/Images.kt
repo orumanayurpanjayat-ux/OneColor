@@ -508,7 +508,7 @@ object Images {
 /** An image an earlier build took ([Images.RETIRED]): its name and sizes, so it is told apart from a file that is no OneOS image. */
 data class RetiredImage(val id: String, val shortName: String, val gzName: String, val gzBytes: Long, val rawBytes: Long)
 
-/** What the app knows about the file the user picked (ImageActivity, AA1). */
+/** What the app knows about the system image file the user picked. */
 data class ImageFileCheck(
     /** `OpenableColumns.DISPLAY_NAME`, for messages only. */
     val displayName: String?,
@@ -541,7 +541,7 @@ enum class ImageState {
     WRONG_FOR_PHONE,
     /** Size or SHA-256 differ: damaged or incomplete download. */
     DAMAGED,
-    /** The unpacked image; the app stages only the .img.gz. */
+    /** A supported raw image, before its complete SHA-256 has been checked. */
     UNCOMPRESSED,
     /** Not a OneOS image, or the size is unknown. */
     UNKNOWN,
@@ -550,7 +550,7 @@ enum class ImageState {
 data class ImageIdentity(val state: ImageState, val image: ImageRef?, val finding: Finding)
 
 /**
- * Identifies the picked file against the images the phone's profile accepts
+ * Identifies a picked compressed or raw image against the images the phone's profile accepts
  * ([PhoneProfile.choices]) and says which one it is: by size first (cheap,
  * before any hashing), then by SHA-256 after "Check file". Only
  * [ImageState.VERIFIED] is OK; everything else is a BLOCK, and an image the
@@ -560,7 +560,7 @@ data class ImageIdentity(val state: ImageState, val image: ImageRef?, val findin
 object ImageIdentifier {
     const val ID = "gate-image"
 
-    /** [Finding.reason]s of the picked .gz ([identify]). */
+    /** [Finding.reason]s of the picked compressed or raw image ([identify]). */
     const val R_SIZE_UNKNOWN = "size-unknown"
     const val R_UNCOMPRESSED = "uncompressed"
     const val R_NOT_OURS = "not-ours"
@@ -606,22 +606,43 @@ object ImageIdentifier {
         val bySize = images.filter { it.gzBytes == size }
         if (bySize.isEmpty()) {
             val raw = Images.byRawSize(size, images)
-            val retired = retiredImages.firstOrNull { it.gzBytes == size }
+            val retired = retiredImages.firstOrNull { it.gzBytes == size || it.rawBytes == size }
             return if (raw == null && retired != null) {
                 ImageIdentity(
                     ImageState.UNKNOWN, null,
                     block(
                         "Image no longer supported",
-                        "$name has the size of the ${retired.shortName} image (${retired.gzName}), which this version of OneOS no longer sets up: $wantText.",
+                        "$name has the size of the ${retired.shortName} image, which this version of OneOS no longer sets up: $wantText.",
                         R_RETIRED,
                     ),
                 )
             } else if (raw != null) {
-                val pick = if (profile == null || profile.choice(raw.id) != null) "pick ${raw.gzName}" else wantText
-                ImageIdentity(
-                    ImageState.UNCOMPRESSED, raw,
-                    block("Pick the .img.gz file", "$name is the unpacked ${raw.shortName} image. OneOS unpacks the image itself: $pick.", R_UNCOMPRESSED),
-                )
+                if (profile != null && profile.choice(raw.id) == null) {
+                    return ImageIdentity(
+                        ImageState.WRONG_FOR_PHONE, raw,
+                        block("Wrong image for this phone", "This is the unpacked ${raw.shortName} image; $wantText.", R_WRONG_PHONE),
+                    )
+                }
+                val sha = check.sha256?.lowercase(Locale.ROOT)
+                when {
+                    sha == null -> ImageIdentity(
+                        ImageState.UNCOMPRESSED, raw,
+                        block("Check this .img file", "$name is the unpacked ${raw.shortName} image. Tap Check file to verify its SHA-256 before setup.", R_UNCOMPRESSED),
+                    )
+                    !raw.rawMatches(size, sha) || (check.bytes != null && check.bytes != size) -> ImageIdentity(
+                        ImageState.DAMAGED, raw,
+                        block(
+                            "The file is damaged or changed",
+                            "$name does not match the unpacked ${raw.shortName} image (SHA-256 ${sha.take(12)}..., expected " +
+                                "${raw.rawSha256.take(12)}...). Choose the original system image again.",
+                            R_DAMAGED,
+                        ),
+                    )
+                    else -> ImageIdentity(
+                        ImageState.VERIFIED, raw,
+                        Finding(ID, Level.OK, "${raw.shortName} image verified", "${raw.label}: unpacked .img, ${Units.bytes(raw.rawBytes)}, SHA-256 matches."),
+                    )
+                }
             } else {
                 ImageIdentity(
                     ImageState.UNKNOWN, null,

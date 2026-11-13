@@ -349,6 +349,12 @@ class GatesTest {
         assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, i.copy(imageFile = null)).level(SwitchGates.ID_IMAGE))
         val x9u = Images.FIND_X9U_IN
         assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, i.copy(imageFile = ImageFileCheck(null, x9u.gzBytes))).level(SwitchGates.ID_IMAGE))
+        val rawX9u = eval(
+            GatePhase.PREPARE,
+            input(Bundles.S26U).copy(imageFile = ImageFileCheck(x9u.gzName.removeSuffix(".gz"), x9u.rawBytes, x9u.rawSha256, x9u.rawBytes)),
+        )
+        assertEquals(Level.OK, rawX9u.level(SwitchGates.ID_IMAGE))
+        assertEquals(PackageSets.X9U_IN_SULTRA, rawX9u.set)
         // Prepare has no ticks: the warnings are ticked at Switch.
         val r = eval(GatePhase.PREPARE, i)
         assertTrue(r.toTick.isEmpty())

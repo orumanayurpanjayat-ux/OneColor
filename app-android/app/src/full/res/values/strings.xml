@@ -46,7 +46,7 @@
 
     <!-- Use a downloaded file: the texts that did not change (the rest: strings_advanced.xml) -->
     <string name="image_choice_title">%1$s image</string>
-    <string name="image_pick_title">Pick the downloaded file</string>
+    <string name="image_pick_title">Pick a system image</string>
     <string name="image_picked_unnamed">Picked file</string>
     <string name="image_size_unknown">Size unknown</string>
     <string name="image_stop_summary">Stops the check. Nothing is kept.</string>

@@ -331,7 +331,7 @@ other phones and guests.
 
 | id | Title: description | Applies when | Default / toggle | Today | App stage | Evidence | Risk |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `core.image_import` | Import your OS image: .img/.zip/.7z/.gz to raw ext4, SHA-256, free-space check | always | on / locked | `deploy-phone.sh:271-291`; `MainActivity` 7zz | import | sparse/erofs not supported (`mp:84` mounts ext4) | an erofs GSI cannot mount: refuse with a message |
+| `core.image_import` | Load a local `.img` or `.img.gz`; hash the complete picked file and require the exact supported raw image before selecting its OneOS patch set | always | on / locked | `ImageActivity`; `ImageIdentifier`; `PrepareJob.RawImageFeed` | pick, check, prepare | Only images with a matching device profile and patch set are accepted. S24 Ultra ColorOS selects `x9u-in-sultra` only for the verified Find X9 Ultra IN image; other builds need their own checked patch set. Sparse/EROFS images remain unsupported (`mp:84` mounts ext4). | Applying patched jars or libraries to another build may stop its guest at startup; reject until that build has a matching patch set and verification |
 | `core.loop_mount` | Mount the image read-only on a loop device | always | on / locked | `mp:55-85` | stage | | |
 | `core.namespace_pivot` | Run the guest in its own mount namespace (`unshare -m`, `pivot_root`) | always | on / locked | `sw:529`; `mi:5-15` | inner | | |
 | `core.host_sys_dev_binds` | Share the kernel interfaces: rbind host `/sys`, `/dev`, binderfs | always | on / locked | `mp:91-113` | stage | system_server fork failed without cgroup2 | |

@@ -144,7 +144,7 @@ data class GateInput(
     /** Free bytes on /data (StatFs; root's df at launch); null = unknown. */
     val freeBytes: Long? = facts.storage?.freeBytes,
     val carrier: CarrierInfo? = facts.carrier,
-    /** PREPARE: the picked .gz. */
+    /** PREPARE: the picked compressed or raw system image. */
     val imageFile: ImageFileCheck? = null,
     /** PREPARE with "Use the image already on this phone": the stage's system.raw (then [imageFile] is not used). */
     val onPhone: StagedRaw? = null,

@@ -31,9 +31,9 @@ import java.util.concurrent.Executors
 import dev.oneuiproject.oneui.R as OuiIcons
 
 /**
- * Use a downloaded file (Advanced; Choose a system's last row): Pick the
+ * Load a custom GSI file (Advanced; Choose a system's last row): Pick the
  * file (the system file picker; no storage permission), Check the file
- * (SHA-256 of the whole .gz, with progress), and reuse the system already on
+ * (SHA-256 of the whole .img or .img.gz, with progress), and reuse the system already on
  * this phone when the stage holds a system.raw of one this phone takes. Both
  * say which system it is (ImageIdentifier) in plain words (Plain); a file
  * this phone does not take is a BLOCK naming the ones it does. The systems
@@ -51,7 +51,7 @@ class ImageActivity : ToolbarActivity() {
     lateinit var pick: ActivityResultLauncher<Unit>
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        pick = registerForActivityResult(OpenGz()) { uri -> if (uri != null) picked(uri) }
+        pick = registerForActivityResult(OpenSystemImage()) { uri -> if (uri != null) picked(uri) }
         super.onCreate(savedInstanceState)
     }
 
@@ -72,13 +72,13 @@ class ImageActivity : ToolbarActivity() {
         (supportFragmentManager.findFragmentById(R.id.fragment_container) as? ImageFragment)?.redraw()
     }
 
-    /** ACTION_OPEN_DOCUMENT for the .img.gz (any type: providers label .gz differently). */
-    private class OpenGz : ActivityResultContract<Unit, Uri?>() {
+    /** ACTION_OPEN_DOCUMENT for .img or .img.gz (providers label disk images inconsistently). */
+    private class OpenSystemImage : ActivityResultContract<Unit, Uri?>() {
         override fun createIntent(context: Context, input: Unit): Intent =
             Intent(Intent.ACTION_OPEN_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE)
                 .setType("*/*")
-                .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/gzip", "application/x-gzip", "application/octet-stream", "*/*"))
+                .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/gzip", "application/x-gzip", "application/x-android-disk-image", "application/octet-stream", "*/*"))
 
         override fun parseResult(resultCode: Int, intent: Intent?): Uri? = if (resultCode == Activity.RESULT_OK) intent?.data else null
     }
@@ -167,17 +167,23 @@ class ImageFragment : CardsFragment() {
             identity(file, pid, p, onPhone = false)
             val busy = job.busy && job.uri == picked.uri
             if (busy) {
-                val total = (job.total ?: pid.image?.gzBytes ?: picked.bytes ?: 0L).coerceAtLeast(1)
+                val total = job.total ?: picked.bytes ?: pid.image?.let { image ->
+                    if (picked.check.hashedBytes == image.rawBytes) image.rawBytes else image.gzBytes
+                }
                 CardRows.tint(
                     Cards.row(
                         file, OuiIcons.drawable.ic_oui_refresh,
-                        getString(R.string.image_checking, (job.read * 100 / total).toInt()),
-                        getString(R.string.image_checking_bytes, Units.bytes(job.read), Units.bytes(total)),
+                        if (total != null) getString(R.string.image_checking, (job.read * 100 / total.coerceAtLeast(1)).toInt())
+                        else getString(R.string.image_checking_unknown, Units.bytes(job.read)),
+                        if (total != null) getString(R.string.image_checking_bytes, Units.bytes(job.read), Units.bytes(total))
+                        else getString(R.string.image_checking_unknown_bytes, Units.bytes(job.read)),
                     ),
                     Level.INFO,
                 )
                 Cards.row(file, OuiIcons.drawable.ic_oui_close, getString(R.string.tests_stop_title), getString(R.string.image_stop_summary)) { ImageCheckJob.cancel() }
-            } else if (pid.state == ImageState.NOT_CHECKED || pid.state == ImageState.DAMAGED) {
+            } else if (pid.state == ImageState.NOT_CHECKED || pid.state == ImageState.UNCOMPRESSED || pid.state == ImageState.DAMAGED ||
+                (pid.state == ImageState.UNKNOWN && pid.finding.reason == ImageIdentifier.R_SIZE_UNKNOWN)
+            ) {
                 Cards.row(file, OuiIcons.drawable.ic_oui_security_outline, getString(R.string.image_check_title), getString(R.string.image_check_summary)) {
                     ImageCheckJob.start(ctx, picked.uri, picked.bytes)
                 }
@@ -267,8 +273,8 @@ class ImageFragment : CardsFragment() {
             return
         }
         val m = Plain.of(f, id.image, p)
-        // Not checked yet stops nothing: setup checks the download first.
-        val level = if (f.reason == ImageIdentifier.R_NOT_CHECKED) Level.INFO else f.level
+        // Unchecked images stop nothing: setup checks the whole file before writing it.
+        val level = if (f.reason == ImageIdentifier.R_NOT_CHECKED || f.reason == ImageIdentifier.R_UNCOMPRESSED) Level.INFO else f.level
         CardRows.status(card, level, m.title, m.line)
     }
 
