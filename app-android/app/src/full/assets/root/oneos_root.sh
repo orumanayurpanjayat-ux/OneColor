@@ -25,6 +25,7 @@
 #   env <bytes>                       stdin: session.env
 #   finish <profile> <image> <set> <versionCode>
 #   launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub>
+#          [verboseBoot] [balanced|smoother|maximum]
 #                                     secIms 0|1: this launch's
 #                                     ONEOS_GUEST_SEC_IMS (this phone's
 #                                     Samsung IMS app in the guest)
@@ -35,7 +36,8 @@
 #                                     hideGms 0|1: this launch's
 #                                     ONEOS_GUEST_HIDE_GMS (1 only for an
 #                                     image in IMAGES_GMS); heatCap 0|1: its
-#                                     ONEOS_HEAT_CAP (Cool down when hot)
+#                                     ONEOS_HEAT_CAP and ONEOS_HEAT_CAP_PROFILE
+#                                     (the selected performance and thermal mode)
 #   recover                           restore One UI's persist props after a
 #                                     session that never returned (hard reset)
 #   old-list                          read only: every oneos.old-* and .trash-*
@@ -166,7 +168,7 @@ SET_OXYGENOS="services_patched.jar oplus-services_patched.jar vold_patched servi
 SET_ORIGINOS="BBKLauncher2_patched.apk BBKLauncher2_patched.apk.src_sha256 OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img configinfrastructure_payload.img conscrypt_payload.img crashrecovery_payload.img extservices_payload.img framework-adapter_patched.jar framework-wifi_patched.jar framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libandroid_servers_patched.so libbluetooth_jni_patched.so libcamera_client_patched.so libcomposer_ext_patched.so libinputflinger_patched.so libinputservice_patched.so libsensorservice_patched.so mediaprovider_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneos-vivo-features.txt permission_payload.img profiling_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched telephony-common_patched.jar telephonycore_payload.img tethering_payload.img vivo-framework_patched.jar vivo-service-wifi-ex-impl_patched.jar vivo-service-wifi_patched.jar vivo-services_patched.jar vivo-telephony-common-platform-ex_patched.jar vold_patched wifi_payload.img"
 # Host /data trees of switcher/assets/bridges.sh (relative to /data).
 BRIDGE_HOSTS="app app-staging user user_de dalvik-cache misc/profiles data media misc/user misc_ce/0/sdksandbox misc_de/0/sdksandbox misc_ce/0/rollback misc_de/0/rollback resource-cache"
-ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_GUEST_SEC_IMS ONEOS_GUEST_EDM_STUB ONEOS_VERBOSE_BOOT ONEOS_RETURN_MODE"
+ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_HEAT_CAP_PROFILE ONEOS_GUEST_SEC_IMS ONEOS_GUEST_EDM_STUB ONEOS_VERBOSE_BOOT ONEOS_RETURN_MODE"
 # Images whose Google services a session may hide (ONEOS_GUEST_HIDE_GMS=1;
 # ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11) and
 # the Find N6 global build (0.4.38). The Pixel images have them too, but their
@@ -780,7 +782,7 @@ write_raw_id() {
 # --- Checks shared by table/env/finish and launch ---------------------------
 # session.env: every allowed key once, each with exactly the profile's value;
 # ONEOS_GUEST_HIDE_GMS 0, or 1 when the image is in IMAGES_GMS;
-# ONEOS_HEAT_CAP 1 (Prepare) or 0 (a launch with Cool down when hot off).
+# ONEOS_HEAT_CAP and ONEOS_HEAT_CAP_PROFILE are a matched launch choice.
 env_value() {
     case "$1" in
         ONEOS_APP|ONEOS_LOGCAT) echo 1 ;;
@@ -793,6 +795,7 @@ env_value() {
             if [ "$2" = fold ]; then echo 1; else echo 0; fi ;;
         ONEOS_GUEST_HIDE_GMS) echo 0 ;;
         ONEOS_HEAT_CAP) echo 1 ;;
+        ONEOS_HEAT_CAP_PROFILE) echo balanced ;;
         # 0.4.20: this phone's Samsung IMS app in the guest (VoLTE), a launch's choice, 0 or 1 on any phone.
         ONEOS_GUEST_SEC_IMS) echo 0 ;;
         # 0.4.32: the Knox edmnativehelper stand-in, a launch's choice, 0 or 1 on any phone.
@@ -825,12 +828,18 @@ check_env() { # <file> <form> <profile> <image>
             in_list "$4" "$IMAGES_GMS" || refuse "session.env hides Google services, but $4 has none a session may hide"
             continue
         fi
+        if [ "$key" = ONEOS_HEAT_CAP_PROFILE ]; then
+            case "$val" in balanced|smoother|maximum) continue ;; *) refuse "session.env $key=$val is not a known performance profile" ;; esac
+        fi
         [ "$key" = ONEOS_HEAT_CAP ] && [ "$val" = 0 ] && continue
         [ "$val" = "$want" ] || refuse "session.env $key=$val (profile $3: $want)"
     done < "$f"
     for k in $ENV_KEYS; do
         case "$seen" in *" $k "*) ;; *) refuse "session.env lacks $k" ;; esac
     done
+    env_heat=$(sed -n 's/^ONEOS_HEAT_CAP=//p' "$f")
+    env_heat_profile=$(sed -n 's/^ONEOS_HEAT_CAP_PROFILE=//p' "$f")
+    case "$env_heat_profile:$env_heat" in balanced:1|smoother:1|maximum:0) ;; *) refuse "session.env performance profile and heat cap do not match" ;; esac
 }
 # host_installd.table (InstalldTableFormat 1): this phone's fingerprint, the
 # source jar's SHA-256, a valid trailer, and methods equal to the staged
@@ -1178,8 +1187,8 @@ find_tools() {
 }
 
 do_launch() {
-    [ $# -eq 7 ] || [ $# -eq 8 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub> [verboseBoot]"
-    mode=$1 code=$2 sid=$3 gms=$4 heat=$5 secims=$6 edmstub=$7 verbose=${8:-0}
+    [ $# -eq 7 ] || [ $# -eq 8 ] || [ $# -eq 9 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub> [verboseBoot] [balanced|smoother|maximum]"
+    mode=$1 code=$2 sid=$3 gms=$4 heat=$5 secims=$6 edmstub=$7 verbose=${8:-0} heat_profile=${9:-balanced}
     case "$mode" in session|dry) ;; *) usage "launch mode $mode" ;; esac
     is_dec "$code" || usage "launch versionCode $code"
     case "$sid" in *[!0-9a-f]*|'') usage "launch session id" ;; esac
@@ -1189,6 +1198,8 @@ do_launch() {
     case "$secims" in 0|1) ;; *) usage "launch secIms $secims" ;; esac
     case "$edmstub" in 0|1) ;; *) usage "launch edmStub $edmstub" ;; esac
     case "$verbose" in 0|1) ;; *) usage "launch verboseBoot $verbose" ;; esac
+    case "$heat_profile" in balanced|smoother|maximum) ;; *) usage "launch performance profile $heat_profile" ;; esac
+    case "$heat_profile:$heat" in balanced:1|smoother:1|maximum:0) ;; *) usage "launch performance profile and heat cap do not match" ;; esac
     [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
     step "checks"
     [ ! -e "$STAGE/.oneos_update" ] || refuse "the installed system update did not finish: retry the update"
@@ -1242,15 +1253,17 @@ do_launch() {
         refuse "less than 11 GiB free on /data"
 
     # This launch's Google services choice (the Switch screen; Prepare wrote 0),
-    # its Cool down when hot (Advanced; Prepare wrote 1), its Samsung IMS choice
+    # its performance profile (Advanced; Prepare wrote balanced), its Samsung IMS choice
     # and (0.4.32) its Knox edm stub choice (both Advanced; Prepare wrote 0): the
     # five lines of session.env a launch changes, after every check. The next
     # launch writes its own. (Before the test root's stop, so the tests see it.)
     sed -e "s/^ONEOS_GUEST_HIDE_GMS=.*/ONEOS_GUEST_HIDE_GMS=$gms/" -e "s/^ONEOS_HEAT_CAP=.*/ONEOS_HEAT_CAP=$heat/" \
+        -e "s/^ONEOS_HEAT_CAP_PROFILE=.*/ONEOS_HEAT_CAP_PROFILE=$heat_profile/" \
         -e "s/^ONEOS_GUEST_SEC_IMS=.*/ONEOS_GUEST_SEC_IMS=$secims/" \
         -e "s/^ONEOS_VERBOSE_BOOT=.*/ONEOS_VERBOSE_BOOT=$verbose/" \
         -e "s/^ONEOS_GUEST_EDM_STUB=.*/ONEOS_GUEST_EDM_STUB=$edmstub/" "$STAGE/session.env" > "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_GUEST_HIDE_GMS=$gms" "$STAGE/session.env.tmp" && grep -q -x "ONEOS_HEAT_CAP=$heat" "$STAGE/session.env.tmp" &&
+        grep -q -x "ONEOS_HEAT_CAP_PROFILE=$heat_profile" "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_GUEST_SEC_IMS=$secims" "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_VERBOSE_BOOT=$verbose" "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_GUEST_EDM_STUB=$edmstub" "$STAGE/session.env.tmp" &&

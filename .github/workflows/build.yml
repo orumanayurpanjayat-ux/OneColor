@@ -168,6 +168,11 @@ jobs:
       - name: Test guest host-APEX bind regression
         run: python3 scripts/test-host-apex-bind.py
 
+      - name: Test thermal profiles and performance handover
+        run: |
+          python3 scripts/test-thermal-profile.py
+          python3 scripts/test-performance-handover.py
+
       - name: Build and stage the required guest manager APK
         run: |
           set -Eeuo pipefail

@@ -8,6 +8,7 @@ import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.GatePhase
 import com.fahadali.oneos.core.model.Images
 import com.fahadali.oneos.core.model.Level
+import com.fahadali.oneos.core.model.SessionPerformanceMode
 import com.fahadali.oneos.session.LaunchJob
 import com.fahadali.oneos.session.SessionPrefs
 import com.fahadali.oneos.session.StageCheck
@@ -171,7 +172,11 @@ class SwitchFragment : CardsFragment() {
         val message = (if (dry) getString(R.string.switch_dry_dialog_message, system) else getString(R.string.switch_go_dialog_message, system, back)) +
             (if (!dry && setupNote) "\n\n" + getString(R.string.confirm_setup_wizard, system) else "") +
             (if (hide) "\n\n" + getString(R.string.switch_dialog_gms_hidden) else "") +
-            if (!dry && !SessionPrefs.heatCap(requireContext())) "\n\n" + getString(R.string.confirm_heat_cap_off) else ""
+            if (dry) "" else when (SessionPrefs.performanceMode(requireContext())) {
+                SessionPerformanceMode.BALANCED -> ""
+                SessionPerformanceMode.SMOOTHER -> "\n\n" + getString(R.string.confirm_performance_smoother)
+                SessionPerformanceMode.MAXIMUM -> "\n\n" + getString(R.string.confirm_performance_max)
+            }
         AlertDialog.Builder(requireContext())
             .setTitle(if (dry) getString(R.string.switch_dry_dialog_title) else getString(R.string.switch_go_dialog_title, system))
             .setMessage(message)

@@ -92,7 +92,7 @@ object ImageCheckJob : BackgroundJob<ImageCheckJob.State>(State(), "oneos-image"
  * re-checks everything itself, writes this launch's Google services choice
  * into session.env (`ONEOS_GUEST_HIDE_GMS`, only for an image whose Google
  * services may be hidden, [com.fahadali.oneos.core.model.ImageRef.gmsHideable])
- * and Cool down when hot (`ONEOS_HEAT_CAP`, Advanced, [SessionPrefs.heatCap]),
+ * and the performance profile (`ONEOS_HEAT_CAP` and `ONEOS_HEAT_CAP_PROFILE`, Advanced),
  * leaves the app's cgroup and starts the session detached in init's mount
  * namespace. The app is expected to be killed a few seconds later, when One
  * UI's framework stops. A refusal keeps its finding (or root's reason) so
@@ -236,12 +236,13 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
             SessionPrefs.Launch(sid, dryRun, profile.id, image.id, System.currentTimeMillis(), SystemClock.elapsedRealtime(), logsCollected = false),
         )
         update(state.copy(detail = "Root is checking everything again and starting the switch…"))
+        val performanceMode = SessionPrefs.performanceMode(app)
         val reply = RootVerbs.run(
             app, RootScript.Verb.LAUNCH,
             listOf(
                 if (dryRun) "dry" else "session", BuildConfig.VERSION_CODE.toString(), sid, if (hideGms) "1" else "0",
-                if (SessionPrefs.heatCap(app)) "1" else "0", if (secIms) "1" else "0", if (edmStub) "1" else "0",
-                if (SessionPrefs.verboseBoot(app)) "1" else "0",
+                if (performanceMode.heatCapEnabled) "1" else "0", if (secIms) "1" else "0", if (edmStub) "1" else "0",
+                if (SessionPrefs.verboseBoot(app)) "1" else "0", performanceMode.wireValue,
             ),
             silenceMs = 5 * 60_000L,
         )

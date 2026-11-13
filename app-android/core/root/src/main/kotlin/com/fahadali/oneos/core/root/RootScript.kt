@@ -30,7 +30,8 @@ import com.fahadali.oneos.core.model.PackageSets
  * ([problems]), so nothing in the command needs quoting. `begin` and `finish`
  * name the profile, the image and its file set (root refuses a set that is not
  * that image's on that phone); `launch` carries this launch's
- * `ONEOS_GUEST_HIDE_GMS`, `ONEOS_HEAT_CAP`, `ONEOS_GUEST_SEC_IMS` and (0.4.32)
+ * `ONEOS_GUEST_HIDE_GMS`, `ONEOS_HEAT_CAP`, `ONEOS_HEAT_CAP_PROFILE`,
+ * `ONEOS_GUEST_SEC_IMS` and (0.4.32)
  * `ONEOS_GUEST_EDM_STUB` (0 or 1 each).
  */
 object RootScript {
@@ -212,7 +213,7 @@ object RootScript {
                 arg(3, DEC, "a versionCode")
             }
             Verb.LAUNCH -> {
-                if (args.size !in 7..8) need(8)
+                if (args.size !in 7..9) p += "launch takes 7, 8 or 9 arguments, got ${args.size}"
                 args.getOrNull(0)?.let { if (it != "session" && it != "dry") p += "launch: mode '$it'" }
                 arg(1, DEC, "a versionCode")
                 arg(2, HEX16, "a session id")
@@ -221,6 +222,7 @@ object RootScript {
                 args.getOrNull(5)?.let { if (it != "0" && it != "1") p += "launch: Samsung IMS '$it' is not 0 or 1" }
                 args.getOrNull(6)?.let { if (it != "0" && it != "1") p += "launch: Knox edm stub '$it' is not 0 or 1" }
                 args.getOrNull(7)?.let { if (it != "0" && it != "1") p += "launch: verbose boot is not 0 or 1" }
+                args.getOrNull(8)?.let { if (it !in setOf("balanced", "smoother", "maximum")) p += "launch: performance profile '$it' is not balanced, smoother or maximum" }
             }
             Verb.RECOVER, Verb.OLD_LIST, Verb.REMOVE, Verb.BRING_CLEAR, Verb.BRING_STATUS -> need(0)
             Verb.BRING_COLLECT -> {

@@ -76,7 +76,19 @@ class SettingsPreferenceFragment : InsetPreferenceFragment() {
         }
         val sessions = category(R.string.advanced_card_sessions)
         row(sessions, R.string.last_title, target = LastSessionActivity::class.java)
-        toggle(sessions, R.string.advanced_heat_cap_title, R.string.advanced_heat_cap_summary, SessionPrefs.heatCap(ctx)) { SessionPrefs.setHeatCap(ctx, it) }
+        sessions.addDescribedPreference(Preference(ctx).apply {
+            key = "setting_session_performance"
+            setTitle(R.string.advanced_performance_title)
+            summary = SessionPerformanceUi.summary(ctx)
+            isIconSpaceReserved = false
+            setOnPreferenceClickListener {
+                SessionPerformanceUi.show(ctx) {
+                    summary = SessionPerformanceUi.summary(ctx)
+                    onCreatePreferences(null, null)
+                }
+                true
+            }
+        })
         val experimental = category(R.string.settings_experimental)
         toggle(experimental, R.string.advanced_sec_ims_title, R.string.advanced_sec_ims_summary, SessionPrefs.secIms(ctx)) { SessionPrefs.setSecIms(ctx, it) }
         toggle(experimental, R.string.advanced_edm_stub_title, R.string.advanced_edm_stub_summary, SessionPrefs.edmStub(ctx)) { SessionPrefs.setEdmStub(ctx, it) }

@@ -27,6 +27,7 @@ class SessionEnvTest {
             ONEOS_GUEST_WALLPAPER_GRID=1
             ONEOS_GUEST_HIDE_GMS=0
             ONEOS_HEAT_CAP=1
+            ONEOS_HEAT_CAP_PROFILE=balanced
             ONEOS_GUEST_SEC_IMS=0
             ONEOS_GUEST_EDM_STUB=0
             ONEOS_VERBOSE_BOOT=0
@@ -56,6 +57,7 @@ class SessionEnvTest {
             ONEOS_GUEST_WALLPAPER_GRID=0
             ONEOS_GUEST_HIDE_GMS=0
             ONEOS_HEAT_CAP=1
+            ONEOS_HEAT_CAP_PROFILE=balanced
             ONEOS_GUEST_SEC_IMS=0
             ONEOS_GUEST_EDM_STUB=0
             ONEOS_VERBOSE_BOOT=0
@@ -73,6 +75,23 @@ class SessionEnvTest {
         assertEquals("s-ultra-8750", v["ONEOS_PROFILE"])
         assertEquals(SessionEnv.BAR_FORM, v.filterKeys { it in SessionEnv.BAR_FORM })
         assertEquals(emptyList<String>(), SessionEnv.validate(text))
+    }
+
+    @Test
+    fun s24UltraSessionCarriesAllPerformanceModes() {
+        val profile = Profiles.S_ULTRA_8650
+        assertEquals("phone", SessionEnv.values(profile)["ONEOS_GUEST_FORM"])
+        assertTrue(profile.choices.any { it.imageId == Images.ID_FIND_X9U_IN })
+        assertTrue(profile.choices.any { it.imageId == Images.ID_PIXEL_KOMODO })
+
+        val prepared = SessionEnv.generate(profile)
+        assertEquals(emptyList<String>(), SessionEnv.validate(prepared))
+        val smoother = prepared.replace("ONEOS_HEAT_CAP_PROFILE=balanced", "ONEOS_HEAT_CAP_PROFILE=smoother")
+        assertEquals(emptyList<String>(), SessionEnv.validate(smoother))
+        val maximum = prepared
+            .replace("ONEOS_HEAT_CAP=1", "ONEOS_HEAT_CAP=0")
+            .replace("ONEOS_HEAT_CAP_PROFILE=balanced", "ONEOS_HEAT_CAP_PROFILE=maximum")
+        assertEquals(emptyList<String>(), SessionEnv.validate(maximum))
     }
 
     @Test
@@ -122,10 +141,17 @@ class SessionEnvTest {
         fun problems(text: String) = SessionEnv.validate(text)
 
         assertTrue(problems(good + "ONEOS_RETURN_MAX=0\n").contains("forbidden key ONEOS_RETURN_MAX"))
-        // 0.4.23: Cool down when hot is the launch's choice, 0 or 1 only.
+        // The launch may choose balanced, smoother or maximum; the two keys must agree.
         assertTrue(good.contains("ONEOS_HEAT_CAP=1\n"))
-        assertEquals(emptyList<String>(), problems(good.replace("ONEOS_HEAT_CAP=1", "ONEOS_HEAT_CAP=0")))
+        assertTrue(good.contains("ONEOS_HEAT_CAP_PROFILE=balanced\n"))
+        val maximum = good
+            .replace("ONEOS_HEAT_CAP=1", "ONEOS_HEAT_CAP=0")
+            .replace("ONEOS_HEAT_CAP_PROFILE=balanced", "ONEOS_HEAT_CAP_PROFILE=maximum")
+        assertEquals(emptyList<String>(), problems(maximum))
         assertTrue(problems(good.replace("ONEOS_HEAT_CAP=1", "ONEOS_HEAT_CAP=2")).isNotEmpty())
+        assertTrue(problems(good.replace("ONEOS_HEAT_CAP_PROFILE=balanced", "ONEOS_HEAT_CAP_PROFILE=turbo")).isNotEmpty())
+        assertTrue(problems(good.replace("ONEOS_HEAT_CAP_PROFILE=balanced", "ONEOS_HEAT_CAP_PROFILE=maximum"))
+            .any { "does not match ONEOS_HEAT_CAP_PROFILE=maximum" in it })
         assertTrue(problems(good + "ONEOS_RETURN_KEYS=0\n").contains("forbidden key ONEOS_RETURN_KEYS"))
         // 0.4.7: the return is always in place (a failed check reboots); nothing else may be asked for.
         assertTrue(good.contains("ONEOS_RETURN_MODE=inplace\n"))
@@ -142,7 +168,7 @@ class SessionEnvTest {
         assertTrue(problems(good.removeSuffix("\n")).contains("must end with a newline"))
         assertTrue(problems(good.replace("\n", "\r\n")).isNotEmpty())
         assertTrue(problems("# comment\n$good").contains("line 1 is not KEY=VALUE"))
-        assertTrue(problems("$good\n").contains("line 20 is not KEY=VALUE"))
+        assertTrue(problems("$good\n").contains("line 21 is not KEY=VALUE"))
         assertTrue(problems(good.replace("ONEOS_APP=1", "export ONEOS_APP=1")).isNotEmpty())
         assertTrue(problems(good.replace("ONEOS_GUEST_FOLD=off", "ONEOS_GUEST_FOLD=\$(reboot)")).isNotEmpty())
         // A fold value in an S Ultra file: the profile decides the form.
@@ -151,6 +177,17 @@ class SessionEnvTest {
         assertTrue(problems(good.replace("s-ultra-8850", "s-ultra-9999")).contains("unknown profile s-ultra-9999"))
         assertTrue(problems("").isNotEmpty())
         assertTrue(problems("A".repeat(SessionEnv.MAX_BYTES + 1)).isNotEmpty())
+    }
+
+    @Test
+    fun performanceModesFailClosedAndKeepHardwareThermalLimits() {
+        assertEquals(SessionPerformanceMode.BALANCED, SessionPerformanceMode.fromWire("balanced"))
+        assertEquals(SessionPerformanceMode.SMOOTHER, SessionPerformanceMode.fromWire("smoother"))
+        assertEquals(SessionPerformanceMode.MAXIMUM, SessionPerformanceMode.fromWire("maximum"))
+        assertEquals(SessionPerformanceMode.BALANCED, SessionPerformanceMode.fromWire("unknown"))
+        assertTrue(SessionPerformanceMode.BALANCED.heatCapEnabled)
+        assertTrue(SessionPerformanceMode.SMOOTHER.heatCapEnabled)
+        assertFalse(SessionPerformanceMode.MAXIMUM.heatCapEnabled)
     }
 
     /**
@@ -194,8 +231,8 @@ class SessionEnvTest {
         // 0.4.67: OxygenOS 16 too (Google in the image, no gmssystem payload in its set).
         assertEquals(listOf(Images.FIND_N6, Images.FIND_X9U_IN, Images.NOTHING_METROID, Images.OXYGEN16), Images.ALL.filter { it.gmsHideable })
         assertEquals(
-            listOf("ONEOS_GUEST_HIDE_GMS", "ONEOS_HEAT_CAP", "ONEOS_GUEST_SEC_IMS", "ONEOS_GUEST_EDM_STUB", "ONEOS_VERBOSE_BOOT", "ONEOS_RETURN_MODE"),
-            SessionEnv.ALLOWED.keys.toList().takeLast(6),
+            listOf("ONEOS_GUEST_HIDE_GMS", "ONEOS_HEAT_CAP", "ONEOS_HEAT_CAP_PROFILE", "ONEOS_GUEST_SEC_IMS", "ONEOS_GUEST_EDM_STUB", "ONEOS_VERBOSE_BOOT", "ONEOS_RETURN_MODE"),
+            SessionEnv.ALLOWED.keys.toList().takeLast(7),
         )
         assertEquals("ONEOS_VERBOSE_BOOT", SessionEnv.ALLOWED.keys.toList().dropLast(1).last())
         for (p in Profiles.BUILT_IN.filter { it.enabled }) {

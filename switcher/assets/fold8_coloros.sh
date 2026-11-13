@@ -139,7 +139,13 @@ perf_worker() {
     [ -n "${gp:-}" ] || return 1
     gpu_top=$(gpu_max)
     case "$gpu_top" in ''|0|*[!0-9]*) return 1;; esac
-    mode=$(cat "$PSTATE/mode"); released=0; level=-1
+    mode=$(cat "$PSTATE/mode"); profile=${ONEOS_HEAT_CAP_PROFILE:-balanced}; released=0; level=-1
+    case "$profile" in
+        balanced) t1=45; t2=47; t3=50; p1=80; p2=65; p3=50 ;;
+        smoother) t1=47; t2=50; t3=53; p1=90; p2=80; p3=65 ;;
+        maximum) t1=0; t2=0; t3=0; p1=100; p2=100; p3=100 ;;
+        *) perf_log "unknown performance profile $profile; preserving host limits"; return 0 ;;
+    esac
     while [ ! -f "$PSTATE/stop" ] && [ ! -f "$STAGE/data/oneos_rec_stop" ]; do
         gp=$(perf_guest) || return 0
         skin=$(timeout 3 "$BB" nsenter -t "$gp" -m -r -- /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys thermalservice 2>/dev/null |
@@ -148,14 +154,23 @@ perf_worker() {
         case "$gpu_t" in ''|*[!0-9]*) skin='';; esac
         if [ -z "$skin" ]; then
             # No new headroom without a valid temperature reading. Once active,
-            # a telemetry loss selects conservative caps, not full frequency.
+            # a telemetry loss selects conservative caps except in explicit
+            # maximum mode, where only the kernel owns thermal limiting.
             [ "$released" = 1 ] || { sleep 2; continue; }
-            new=3
+            if [ "$profile" = maximum ]; then new=0; else new=3; fi
         else
-            new=$(awk -v s="$skin" -v g="$gpu_t" -v l="$level" 'BEGIN {t[1]=45;t[2]=47;t[3]=50;u[1]=70000;u[2]=75000;u[3]=80000;if(l<0)l=0;while(l<3&&(s>=t[l+1]||g>=u[l+1]))l++;while(l>0&&s<t[l]-2&&g<u[l]-5000)l--;print l}')
+            if [ "$profile" = maximum ]; then
+                new=0
+            else
+                new=$(awk -v s="$skin" -v g="$gpu_t" -v l="$level" -v t1="$t1" -v t2="$t2" -v t3="$t3" 'BEGIN {t[1]=t1;t[2]=t2;t[3]=t3;u[1]=70000;u[2]=75000;u[3]=80000;if(l<0)l=0;while(l<3&&(s>=t[l+1]||g>=u[l+1]))l++;while(l>0&&s<t[l]-2&&g<u[l]-5000)l--;print l}')
+            fi
         fi
         if [ "$released" = 0 ]; then
-            [ -n "$skin" ] && awk -v s="$skin" -v g="$gpu_t" 'BEGIN{exit !(s<38&&g<65000)}' || { sleep 2; continue; }
+            if [ "$profile" = maximum ]; then
+                [ -n "$skin" ] && [ -n "$gpu_t" ] || { sleep 2; continue; }
+            else
+                [ -n "$skin" ] && awk -v s="$skin" -v g="$gpu_t" 'BEGIN{exit !(s<38&&g<65000)}' || { sleep 2; continue; }
+            fi
             before=$(cat "$PSTATE/cpu.before")
             prime=$(cat /sys/devices/system/cpu/cpufreq/policy*/cpuinfo_max_freq | awk '$1>m{m=$1} END{print m}')
             # A deliberately restricted host is preserved. Live repair is an
@@ -168,7 +183,7 @@ perf_worker() {
             released=1; touch "$PSTATE/released"
         fi
         if [ "$new" != "$level" ]; then
-            case "$new" in 0) pct=100;; 1) pct=80;; 2) pct=65;; *) pct=50;; esac
+                case "$new" in 0) pct=100;; 1) pct=$p1;; 2) pct=$p2;; *) pct=$p3;; esac
             for p in /sys/devices/system/cpu/cpufreq/policy*; do
                 hw=$(cat "$p/cpuinfo_max_freq"); ceiling=$(cat "$PSTATE/${p##*/}.before")
                 if [ "$mode" = live ] || [ "$(cat "$PSTATE/power_save")" = 0 ]; then ceiling=$hw; fi

@@ -113,6 +113,33 @@ perf_worker
 grep -q 'requested gpu=646' "$STAGE/performance_handover.log"
 ''')
 
+    def test_maximum_profile_leaves_hot_session_to_kernel_thermal_limits(self):
+        self.run_case('''
+ONEOS_HEAT_CAP_PROFILE=maximum
+perf_snapshot host
+perf_guest() { echo 123; }
+timeout() {
+ if [ "$2" = settings ]; then echo 0; elif [ ! -f "$PSTATE/hot-read" ]; then
+  echo 'Current temperatures from HAL:'
+  echo 'Temperature{mValue=52.0, mType=3, mName=SKIN, mStatus=0}'
+  echo 'Current cooling devices'
+  touch "$PSTATE/hot-read"
+ else
+  echo 'Current temperatures from HAL:'
+  echo 'Temperature{mValue=54.0, mType=3, mName=SKIN, mStatus=0}'
+  echo 'Current cooling devices'
+ fi
+}
+sleep() {
+ if [ -f "$PSTATE/slept" ]; then touch "$PSTATE/stop"; else touch "$PSTATE/slept"; fi
+}
+perf_worker
+[ "$(grep -c 'thermal level' "$STAGE/performance_handover.log")" = 1 ]
+grep -q 'requested policy0=3628800' "$STAGE/performance_handover.log"
+grep -q 'requested policy6=4742400' "$STAGE/performance_handover.log"
+grep -q 'requested gpu=1300' "$STAGE/performance_handover.log"
+''')
+
     def test_idle_host_vote_is_released_when_power_saving_is_off(self):
         self.run_case('''
 timeout() {

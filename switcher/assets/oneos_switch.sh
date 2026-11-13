@@ -178,7 +178,7 @@ fi
 # staged. guest_prepare.sh checks both again, with the guards and the stage's
 # app ids, but only after One UI's framework is stopped.
 case "${ONEOS_GUEST_GMS:-1}" in 0|1) ;; *) refuse "ONEOS_GUEST_GMS=$ONEOS_GUEST_GMS (0 or 1)" ;; esac
-# Cool down when hot (the heat cap below): 0 or 1, unset meaning 1.
+# Performance profile's CPU cap flag: 1 for balanced/smoother, 0 for maximum.
 case "${ONEOS_HEAT_CAP:-1}" in 0|1) ;; *) refuse "ONEOS_HEAT_CAP=$ONEOS_HEAT_CAP (0 or 1)" ;; esac
 [ "${ONEOS_GUEST_GMS:-1}" = 1 ] && [ "${ONEOS_GUEST_HIDE_GMS:-0}" = 1 ] && [ -f "$STAGE/gmssystem_payload.img" ] &&
     refuse "ONEOS_GUEST_GMS is on (the default) with gmssystem_payload.img staged, and ONEOS_GUEST_HIDE_GMS=1 hides Google services: set one of them to 0"
@@ -1232,6 +1232,9 @@ STAGE="$STAGE" BB="$BB" /system/bin/sh "$STAGE/fold8_coloros.sh" performance-sna
 # it (-1) when power saving was off here, and the return releases it again for
 # One UI's new SSRM to vote afresh. Read now: settings needs the framework.
 HOST_LOW_POWER=$(timeout 3 settings get global low_power 2>/dev/null)
+# The heat-policy worker runs in a child shell. Export the host setting so its
+# stale-vote release does not mistake an unset variable for power saving.
+export HOST_LOW_POWER
 echo "Before the stop: power saving ${HOST_LOW_POWER:-unknown}, cpufreq_max_limit $(cat /sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit 2>/dev/null || echo none)"
 echo "=== [4b/6] $(date +%T) Stopping the One UI framework ==="
 echo "Before the stop: CPU max/hw kHz: $(cpu_caps); skin: $(skin_temp)"
@@ -3408,7 +3411,7 @@ done
 " </dev/null >/data/local/tmp/ui_activator.log 2>&1 &
 
 # Samsung CPU/GPU votes survive the host framework; capability-detected on every profile.
-# 0.4.38: only with the heat cap off (Cool down when hot, Advanced). With it on, the heat cap
+# 0.4.38: only with maximum performance (Advanced). With a capped profile, the heat cap
 # below caps from 45 C and lifts One UI's stale vote itself; the worker only releases under
 # 38 C and caps after a release, so a hot guest had no cap at all (F8U, Find N6 global:
 # 55.6 C skin at full clock).
@@ -3467,7 +3470,7 @@ $BB sh -c "
 " </dev/null >/dev/null 2>&1 &
 echo "Session sampler: every 30 s to $STAGE/diag_series.txt"
 
-# Heat cap (S25 Ultra af6c2b17; owner 2026-10-27: cap only when hot). One UI's
+# Thermal profile (S25 Ultra af6c2b17; owner 2026-10-27: cap only when hot). One UI's
 # heat control (SSRM) stops with One UI's system_server, and nothing in the
 # guest caps the CPU: that session ran both clusters at full clock up to 54 C
 # skin. Every 10 s the guest's SKIN temperature (its thermal service on the
@@ -3481,8 +3484,8 @@ echo "Session sampler: every 30 s to $STAGE/diag_series.txt"
 # with the return (data/oneos_rec_stop) or when the guest's namespace record is
 # gone, giving the policies their full clock back if it had capped them;
 # return_to_oneui.sh stops it as well and does the same (heat_cap.active), for
-# One UI's SSRM to set its own. ONEOS_HEAT_CAP=0 (Advanced: Cool down when hot
-# off): no cap. Out of the app cgroup, like the sampler.
+# One UI's SSRM to set its own. Maximum mode has no extra OneOS CPU cap.
+# Out of the app cgroup, like the sampler.
 # Guest thermal status (Pixel; owner's go, 2026-11-06). Samsung's thermal HAL
 # told Pixel CRITICAL at 49.6 C skin, and Pixel's JobScheduler holds every
 # ordinary job from SEVERE on (ThermalStatusRestriction, fixed in its code):
@@ -3496,6 +3499,26 @@ echo "Session sampler: every 30 s to $STAGE/diag_series.txt"
 # (only the status then); ONEOS_GUEST_THERMAL_MAP=0 leaves the HAL's.
 rm -f "$STAGE/heat_cap.active"
 HEAT_CAP=0; [ "${ONEOS_HEAT_CAP:-1}" = 1 ] && HEAT_CAP=1
+HEAT_CAP_PROFILE=${ONEOS_HEAT_CAP_PROFILE:-balanced}
+performance_profile_values() {
+    case "$1" in
+        balanced) printf '%s\n' '45 47 50 80 65 50' ;;
+        smoother) printf '%s\n' '47 50 53 90 80 65' ;;
+        maximum) printf '%s\n' '0 0 0 0 0 0' ;;
+        *) return 1 ;;
+    esac
+}
+case "$HEAT_CAP_PROFILE:$HEAT_CAP" in
+    balanced:1|smoother:1|maximum:0) ;;
+    *) refuse "performance profile and heat cap do not match" ;;
+esac
+HEAT_CAP_VALUES=$(performance_profile_values "$HEAT_CAP_PROFILE") || refuse "unknown performance profile $HEAT_CAP_PROFILE"
+HEAT_T1=$(printf '%s' "$HEAT_CAP_VALUES" | cut -d' ' -f1)
+HEAT_T2=$(printf '%s' "$HEAT_CAP_VALUES" | cut -d' ' -f2)
+HEAT_T3=$(printf '%s' "$HEAT_CAP_VALUES" | cut -d' ' -f3)
+HEAT_P1=$(printf '%s' "$HEAT_CAP_VALUES" | cut -d' ' -f4)
+HEAT_P2=$(printf '%s' "$HEAT_CAP_VALUES" | cut -d' ' -f5)
+HEAT_P3=$(printf '%s' "$HEAT_CAP_VALUES" | cut -d' ' -f6)
 GUEST_THERMAL_MAP=0
 [ "${ONEOS_GUEST_THERMAL_MAP:-1}" = 1 ] && grep -q '^  "image": "pixel' "$STAGE/.oneos_stage" 2>/dev/null && GUEST_THERMAL_MAP=1
 if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
@@ -3507,9 +3530,9 @@ if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
     F=$STAGE/heat_cap.log
     CFL=/sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit
     if [ $HEAT_CAP = 1 ]; then
-        echo \"# \$(date) OneOS heat cap: from 45, 47, 50 C skin every CPU policy at 80, 65, 50% of its top clock (2 C hysteresis)\" > \$F
+        echo \"# \$(date) OneOS $HEAT_CAP_PROFILE CPU policy: from $HEAT_T1, $HEAT_T2, $HEAT_T3 C skin at $HEAT_P1, $HEAT_P2, $HEAT_P3% of top clock (2 C hysteresis)\" > \$F
     else
-        echo \"# \$(date) OneOS heat cap off (Cool down when hot): the guest thermal status only\" > \$F
+        echo \"# \$(date) Maximum performance: no extra OneOS CPU cap; guest thermal status only\" > \$F
     fi
     [ $GUEST_THERMAL_MAP = 1 ] && echo \"# guest thermal status from skin: NONE, LIGHT 47, MODERATE 50, SEVERE 53, the HAL status from 56 C (1 C hysteresis)\" >> \$F
     full() {
@@ -3549,7 +3572,14 @@ if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
             fi
         fi
         if [ -n \"\$sk\" ] && [ $HEAT_CAP = 1 ]; then
-            new=\$(awk -v s=\"\$sk\" -v l=\$lvl 'BEGIN { t[1] = 45; t[2] = 47; t[3] = 50; while (l < 3 && s >= t[l + 1]) l++; while (l > 0 && s < t[l] - 2) l--; print l }')
+            if [ \$first = 1 ] && [ \"\$HOST_LOW_POWER\" = 0 ] && [ -w \$CFL ]; then
+                stale=\$(cat \$CFL 2>/dev/null)
+                if [ -n \"\$stale\" ] && [ \"\$stale\" != -1 ]; then
+                    echo -1 > \$CFL 2>/dev/null && echo \"\$stale\" > $STAGE/cpufreq_max_limit.released
+                    echo \"\$(date +%T) released stale One UI CPU ceiling \$stale before applying $HEAT_CAP_PROFILE limits\" >> \$F
+                fi
+            fi
+            new=\$(awk -v s=\"\$sk\" -v l=\$lvl -v t1=$HEAT_T1 -v t2=$HEAT_T2 -v t3=$HEAT_T3 'BEGIN { t[1] = t1; t[2] = t2; t[3] = t3; while (l < 3 && s >= t[l + 1]) l++; while (l > 0 && s < t[l] - 2) l--; print l }')
             if [ \"\$new\" = 0 ] && [ \$first = 1 ]; then
                 capped=''
                 for p in /sys/devices/system/cpu/cpufreq/policy*; do
@@ -3560,7 +3590,7 @@ if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
             elif [ \"\$new\" = 0 ] && [ \$lvl != 0 ]; then
                 full \"skin \$sk C, level \$lvl to 0\"
             elif [ \"\$new\" != 0 ] && [ \"\$new\" != \$lvl ]; then
-                case \$new in 1) pct=80 ;; 2) pct=65 ;; *) pct=50 ;; esac
+                case \$new in 1) pct=$HEAT_P1 ;; 2) pct=$HEAT_P2 ;; *) pct=$HEAT_P3 ;; esac
                 c=''
                 for p in /sys/devices/system/cpu/cpufreq/policy*; do
                     hw=\$(cat \$p/cpuinfo_max_freq 2>/dev/null)
@@ -3575,11 +3605,11 @@ if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
         sleep 10
     done
 " </dev/null >/dev/null 2>&1 &
-    [ $HEAT_CAP = 1 ] && echo "Heat cap: on (from 45 C skin; every 10 s to $STAGE/heat_cap.log)"
-    [ $HEAT_CAP = 1 ] || echo "Heat cap: off (ONEOS_HEAT_CAP=0, Cool down when hot off in Advanced)"
+    [ $HEAT_CAP = 1 ] && echo "Performance profile: $HEAT_CAP_PROFILE (every 10 s to $STAGE/heat_cap.log)"
+    [ $HEAT_CAP = 0 ] && echo "Performance profile: maximum (no extra OneOS CPU cap; kernel thermal limits remain)"
     [ $GUEST_THERMAL_MAP = 1 ] && echo "Guest thermal status: from the skin temperature, the HAL status from 56 C ($STAGE/heat_cap.log)"
 else
-    echo "Heat cap: off (ONEOS_HEAT_CAP=0, Cool down when hot off in Advanced); guest thermal status: the HAL's"
+    echo "Performance profile: maximum (no extra OneOS CPU cap; kernel thermal limits remain); guest thermal status: the HAL's"
 fi
 
 # Panel keeper (0.4.55). The guests OneOS pins at their top refresh rate (no

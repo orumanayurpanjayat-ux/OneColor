@@ -90,7 +90,8 @@ class StageScriptTest {
         fun launch(
             mode: String = "session", hideGms: String = "0", code: String = this.code,
             heatCap: String = "1", secIms: String = "0", edmStub: String = "0", verboseBoot: String = "0",
-        ) = fr.run(RootScript.Verb.LAUNCH, mode, code, "0123456789abcdef", hideGms, heatCap, secIms, edmStub, verboseBoot)
+            heatProfile: String = "balanced",
+        ) = fr.run(RootScript.Verb.LAUNCH, mode, code, "0123456789abcdef", hideGms, heatCap, secIms, edmStub, verboseBoot, heatProfile)
 
         fun prepare(mode: String = "new") {
             ok(begin(mode))
@@ -1305,8 +1306,8 @@ class StageScriptTest {
     }
 
     /**
-     * 0.4.23, Cool down when hot (Advanced): Prepare writes ONEOS_HEAT_CAP=1, a launch writes its own
-     * choice after every check, env takes 0 or 1 and nothing else, and launch needs the word.
+     * Performance profile choices travel through the launch, and the root script
+     * validates that the Boolean cap and named profile agree before it writes the env.
      */
     @Test
     fun aLaunchWritesItsHeatCap() {
@@ -1315,17 +1316,32 @@ class StageScriptTest {
             s.prepare()
             val env = File(fr.stage, "session.env")
             assertTrue(env.readLines().contains("ONEOS_HEAT_CAP=1"))
-            refused(s.launch(heatCap = "0"), "test root: every launch check passed")
+            refused(s.launch(heatCap = "0", heatProfile = "maximum"), "test root: every launch check passed")
             assertTrue(env.readLines().contains("ONEOS_HEAT_CAP=0"))
-            assertEquals(SessionEnv.generate(s.profile).replace("ONEOS_HEAT_CAP=1", "ONEOS_HEAT_CAP=0"), env.readText())
-            refused(s.launch(heatCap = "1"), "test root: every launch check passed")
+            assertTrue(env.readLines().contains("ONEOS_HEAT_CAP_PROFILE=maximum"))
+            val maximum = SessionEnv.generate(s.profile)
+                .replace("ONEOS_HEAT_CAP=1", "ONEOS_HEAT_CAP=0")
+                .replace("ONEOS_HEAT_CAP_PROFILE=balanced", "ONEOS_HEAT_CAP_PROFILE=maximum")
+            assertEquals(maximum, env.readText())
+            refused(s.launch(heatProfile = "smoother"), "test root: every launch check passed")
+            assertTrue(env.readLines().contains("ONEOS_HEAT_CAP=1"))
+            assertTrue(env.readLines().contains("ONEOS_HEAT_CAP_PROFILE=smoother"))
+            refused(s.launch(), "test root: every launch check passed")
             assertEquals(SessionEnv.generate(s.profile), env.readText())
+            val before = env.readText()
+            org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { s.launch(heatProfile = "turbo") }
+            assertEquals(before, env.readText())
             // The launcher never builds a launch without the word (RootScript.problems, tested below).
             assertTrue(runCatching { fr.run(RootScript.Verb.LAUNCH, "session", s.code, "0123456789abcdef", "0") }.isFailure)
             ok(s.begin("keep"))
-            s.ok(s.env(SessionEnv.generate(s.profile).replace("ONEOS_HEAT_CAP=1", "ONEOS_HEAT_CAP=0")))
+            s.ok(s.env(maximum))
             ok(s.begin("keep"))
             refused(s.env(SessionEnv.generate(s.profile).replace("ONEOS_HEAT_CAP=1", "ONEOS_HEAT_CAP=2")), "ONEOS_HEAT_CAP=2")
+            ok(s.begin("keep"))
+            refused(
+                s.env(SessionEnv.generate(s.profile).replace("ONEOS_HEAT_CAP_PROFILE=balanced", "ONEOS_HEAT_CAP_PROFILE=maximum")),
+                "performance profile and heat cap do not match",
+            )
         }
     }
 
@@ -1561,6 +1577,11 @@ class StageScriptTest {
         org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { s.launch(verboseBoot = "2") }
         assertEquals(before, env.readText())
         assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "0", "0", "1;reboot")).isNotEmpty())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "0", "0", "0", "turbo")).isNotEmpty())
+        assertEquals(
+            emptyList<String>(),
+            RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "0", "0", "0", "smoother")),
+        )
     }
 
     @Test

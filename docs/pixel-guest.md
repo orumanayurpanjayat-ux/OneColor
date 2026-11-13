@@ -883,9 +883,10 @@ Since 0.4.23 a heat cap runs during every session, on every guest
   apply. Each change is logged in `heat_cap.log`.
 - At the return, the keeper and return_to_oneui.sh (`heat_cap.active`) put
   every policy back at full clock, and One UI's SSRM then sets its own caps.
-- Advanced > Cool down when hot (on by default) turns it off: the launch
-  writes `ONEOS_HEAT_CAP=0`, root's fifth `launch` word. Home's Switch dialog
-  then says the phone can get very hot.
+- Advanced > Performance and thermals offers Balanced (the default), Smoother
+  performance, and Maximum performance. The selected profile is recorded in
+  `ONEOS_HEAT_CAP` and `ONEOS_HEAT_CAP_PROFILE`; Maximum leaves thermal limiting
+  to Android and the kernel, and the Switch dialog explains the added heat risk.
 
 "Feels like 60 Hz" (testers): the panel was at 120 Hz the whole time, but
 SurfaceFlinger rendered at 60 Hz for 47 s and at 120 Hz for 74 s by the 90 s

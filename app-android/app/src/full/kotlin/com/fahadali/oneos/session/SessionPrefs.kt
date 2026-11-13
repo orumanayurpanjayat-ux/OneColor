@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Process
 import android.os.SystemClock
 import com.fahadali.oneos.core.model.ImageFileCheck
+import com.fahadali.oneos.core.model.SessionPerformanceMode
 import com.fahadali.oneos.core.root.HomeSnapshot
 
 /**
@@ -221,18 +222,32 @@ object SessionPrefs {
     }
 
     /**
-     * Cool down when hot (Advanced; owner 2026-10-27), `ONEOS_HEAT_CAP` for every
-     * launch. On by default: One UI's heat control (SSRM) does not run in the
-     * other system, so the session caps the CPU from 45 °C skin (oneos_switch.sh).
+     * Session performance choice (Advanced). Migrate the previous boolean:
+     * enabled becomes balanced and disabled becomes maximum. The explicit mode
+     * wins after the user chooses one; the kernel's thermal controller is never disabled.
      */
     fun verboseBoot(ctx: Context): Boolean = p(ctx).getBoolean("verbose_boot", false)
     fun setVerboseBoot(ctx: Context, enabled: Boolean) { p(ctx).edit().putBoolean("verbose_boot", enabled).apply() }
 
-    fun heatCap(ctx: Context): Boolean = p(ctx).getBoolean("heat_cap", true)
-
-    fun setHeatCap(ctx: Context, on: Boolean) {
-        p(ctx).edit().putBoolean("heat_cap", on).apply()
+    fun performanceMode(ctx: Context): SessionPerformanceMode {
+        val prefs = p(ctx)
+        if (prefs.contains("performance_mode")) {
+            return SessionPerformanceMode.fromWire(prefs.getString("performance_mode", null))
+        }
+        return if (prefs.getBoolean("heat_cap", true)) SessionPerformanceMode.BALANCED else SessionPerformanceMode.MAXIMUM
     }
+
+    fun setPerformanceMode(ctx: Context, mode: SessionPerformanceMode) {
+        p(ctx).edit().putString("performance_mode", mode.wireValue).apply()
+    }
+
+    /** Compatibility wrapper for older call sites; new UI uses [performanceMode]. */
+    fun heatCap(ctx: Context): Boolean = performanceMode(ctx).heatCapEnabled
+
+    fun setHeatCap(ctx: Context, on: Boolean) = setPerformanceMode(
+        ctx,
+        if (on) SessionPerformanceMode.BALANCED else SessionPerformanceMode.MAXIMUM,
+    )
 
     /**
      * The Home of the last finished check (HomeState.snapshot), shown

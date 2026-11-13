@@ -1,5 +1,17 @@
 package com.fahadali.oneos.core.model
 
+/** Session-level thermal policy. The kernel and vendor thermal limits remain active in every mode. */
+enum class SessionPerformanceMode(val wireValue: String, val heatCapEnabled: Boolean) {
+    BALANCED("balanced", true),
+    SMOOTHER("smoother", true),
+    MAXIMUM("maximum", false);
+
+    companion object {
+        fun fromWire(value: String?): SessionPerformanceMode =
+            entries.firstOrNull { it.wireValue == value } ?: BALANCED
+    }
+}
+
 /**
  * `$STAGE/session.env`, the app's settings for one session (AA5, PLAN.md
  * contract). One `KEY=VALUE` per line, only the keys of [ALLOWED], each with
@@ -26,9 +38,10 @@ package com.fahadali.oneos.core.model
  * The Pixel image has them but presents its own GmsCore ([ImageRef.presentsGms]),
  * which the session scripts refuse to hide, so 0.3.7 has no image that may.
  *
- * [HEAT_CAP] (0.4.23) is the other: Prepare writes 1, and root's `launch`
- * writes Advanced's Cool down when hot. 1 caps the CPU while the skin is hot
- * (oneos_switch.sh), 0 leaves it at full clock. Neither touches the way back.
+ * [HEAT_CAP] (0.4.23) and [HEAT_CAP_PROFILE] are the performance controls:
+ * Prepare writes the balanced profile, and root's `launch` writes the
+ * Advanced screen's choice. The profiles adjust only OneOS's extra CPU policy;
+ * kernel and vendor thermal limits stay in force. Neither touches the way back.
  * [SEC_IMS] (0.4.20) is the second key a launch changes: Prepare writes 0, a
  * launch writes the Advanced screen's choice. 1 stages this phone's own Samsung
  * IMS app into the guest for VoLTE (guest_prepare.sh, docs/samsung-ims-in-guest.md);
@@ -52,8 +65,10 @@ object SessionEnv {
     /** 1: hide Play services, the Play Store and their helpers in the guest for this session (guest_prepare.sh). */
     const val HIDE_GMS = "ONEOS_GUEST_HIDE_GMS"
 
-    /** 1: cap the CPU from 45 °C skin during the session (oneos_switch.sh); 0: full clock all session. */
+    /** Matched with [HEAT_CAP_PROFILE]: 1 for balanced/smoother, 0 for maximum (kernel limits remain). */
     const val HEAT_CAP = "ONEOS_HEAT_CAP"
+    /** balanced, smoother or maximum: the selected guest's extra thermal policy (kernel limits always remain). */
+    const val HEAT_CAP_PROFILE = "ONEOS_HEAT_CAP_PROFILE"
     /** 1: this phone's Samsung IMS app (VoLTE) staged into the guest for this session (guest_prepare.sh); experimental. */
     const val SEC_IMS = "ONEOS_GUEST_SEC_IMS"
     /** 1: answer Knox's edmnativehelper while the guest runs, so a camera open is not 5 s late (oneos_switch.sh); experimental. */
@@ -80,6 +95,7 @@ object SessionEnv {
         "ONEOS_GUEST_WALLPAPER_GRID" to Regex("[01]"),
         HIDE_GMS to Regex("[01]"),
         HEAT_CAP to Regex("[01]"),
+        HEAT_CAP_PROFILE to Regex("balanced|smoother|maximum"),
         SEC_IMS to Regex("[01]"),
         EDM_STUB to Regex("[01]"),
         VERBOSE_BOOT to Regex("[01]"),
@@ -146,6 +162,7 @@ object SessionEnv {
         out.putAll(form)
         out[HIDE_GMS] = "0"
         out[HEAT_CAP] = "1"
+        out[HEAT_CAP_PROFILE] = SessionPerformanceMode.BALANCED.wireValue
         out[SEC_IMS] = "0"
         out[EDM_STUB] = "0"
         out[VERBOSE_BOOT] = "0"
@@ -200,8 +217,8 @@ object SessionEnv {
             else -> for ((k, v) in values(profile)) {
                 val got = seen[k] ?: continue
                 when {
-                    // Either value is the launch's own choice (the pattern allows only 0 or 1).
-                    k == HEAT_CAP -> Unit
+                    // The launch's performance choice, constrained as a pair below.
+                    k == HEAT_CAP || k == HEAT_CAP_PROFILE -> Unit
                     k == SEC_IMS -> {} // 0 or 1, a launch's choice on any phone and image
                     k == EDM_STUB || k == VERBOSE_BOOT -> {} // 0 or 1, a launch's choice on any phone and image
                     k != HIDE_GMS -> if (got != v) p += "$k=$got does not match profile $id ($v)"
@@ -212,6 +229,12 @@ object SessionEnv {
                     }
                 }
             }
+        }
+        val cap = seen[HEAT_CAP]
+        val capProfile = seen[HEAT_CAP_PROFILE]
+        val expectedCap = if (capProfile == SessionPerformanceMode.MAXIMUM.wireValue) "0" else "1"
+        if (cap != null && capProfile != null && cap != expectedCap) {
+            p += "$HEAT_CAP=$cap does not match $HEAT_CAP_PROFILE=$capProfile ($expectedCap)"
         }
         return p
     }
