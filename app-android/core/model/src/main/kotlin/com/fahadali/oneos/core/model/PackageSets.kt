@@ -257,7 +257,8 @@ object PackageSets {
             // 0.4.63: OPPO's AI engine for the guest's /odm (lock screen depth effect, AI features).
             PackageFile(ODM_AI, FileRole.GUEST_FIX),
         omitted = listOf(TETHERING),
-        approxBytes = 789_758_712L,
+        // Includes the 26,008,661-byte PermissionController compatibility APK.
+        approxBytes = 815_767_373L,
         hasReturnApp = true,
     )
 
