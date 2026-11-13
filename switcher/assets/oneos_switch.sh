@@ -1961,7 +1961,7 @@ protect_zygote_sockets() {
         for c in $($BB pgrep -P "$TAKEOVER_PID" 2>/dev/null); do
             case "$(readlink "/proc/$c/exe" 2>/dev/null)" in */app_process64) zc=$c; break ;; esac
         done
-        [ -z "$zc" ] || { echo "Zygote sockets: the guest zygote is $zc, started by the guest root launcher $TAKEOVER_PID"; break; }
+        [ -z "$zc" ] || { echo "Zygote sockets: the guest zygote is $zc, started by takeover PID $TAKEOVER_PID"; break; }
         n=$((n + 1))
         [ $n -lt 3000 ] || { echo "Zygote sockets: the guest zygote did not start within 300 s, not protected"; return 0; }
         sleep 0.1
@@ -3982,14 +3982,28 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # next try, 32809875, compiled in 7 s and booted). A start that
             # hangs is still bounded by ONEOS_RETURN_MAX.
             startup_stuck=0
+            zygote_pid=$TAKEOVER_PID
             zygote_exe=\$(readlink /proc/$TAKEOVER_PID/exe 2>/dev/null)
+            case \"\$zygote_exe\" in
+                */app_process64|*/app_process32) ;;
+                *)
+                    # Rooted sessions keep the takeover PID as the OneOS su
+                    # launcher; app_process is its direct child. The same
+                    # shape is used by the non-root exit-status wrapper below.
+                    for c in \$($BB pgrep -P \"$TAKEOVER_PID\" 2>/dev/null); do
+                        child_exe=\$(readlink /proc/\$c/exe 2>/dev/null)
+                        case \"\$child_exe\" in
+                            */app_process64|*/app_process32) zygote_pid=\$c; zygote_exe=\$child_exe; break ;;
+                        esac
+                    done
+                    ;;
+            esac
             if pidof system_server >/dev/null || pidof zygote64 >/dev/null; then
                 dead=0; app_process_wait=0
             else
                 case \"\$zygote_exe\" in
                     */app_process64|*/app_process32)
-                        # TAKEOVER_PID is the guest_start process that exec'd
-                        # app_process64. Its exact PID is still alive; do not
+                        # The exact app_process PID is still alive; do not
                         # count it as dead before ART names it zygote64.
                         dead=0; app_process_wait=\$((app_process_wait + 10))
                         [ \$app_process_wait -ge 120 ] && startup_stuck=1
@@ -4008,7 +4022,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             fi
             if [ \$startup_stuck -eq 1 ] || [ \$dead -ge 30 ]; then
                 if [ \$startup_stuck -eq 1 ]; then
-                    failure_reason=\"app_process64 stayed alive without zygote registration for \${app_process_wait}s\"
+                    failure_reason=\"app_process64 pid \$zygote_pid stayed alive without zygote registration for \${app_process_wait}s\"
                     echo \"\$(date) \$failure_reason; returning to One UI\"
                 else
                     failure_reason=\"guest zygote/system_server absent after \${t}s (gone for \${dead}s)\"
@@ -4018,15 +4032,27 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     echo \"\$(date) zygote failure snapshot: \$failure_reason\"
                     if [ \$startup_stuck -eq 1 ]; then
                         echo '--- live app_process startup state'
-                        echo \"pid=$TAKEOVER_PID exe=\$zygote_exe mnt=\$(readlink /proc/$TAKEOVER_PID/ns/mnt 2>/dev/null)\"
-                        grep -E '^(Name|State|PPid|Threads|VmRSS):' /proc/$TAKEOVER_PID/status 2>&1
-                        echo \"wchan: \$(cat /proc/$TAKEOVER_PID/wchan 2>&1)\"
-                        cat /proc/$TAKEOVER_PID/stack 2>&1
+                        echo \"pid=\$zygote_pid owner=$TAKEOVER_PID exe=\$zygote_exe mnt=\$(readlink /proc/\$zygote_pid/ns/mnt 2>/dev/null)\"
+                        grep -E '^(Name|State|PPid|Threads|VmRSS):' /proc/\$zygote_pid/status 2>&1
+                        echo \"wchan: \$(cat /proc/\$zygote_pid/wchan 2>&1)\"
+                        cat /proc/\$zygote_pid/stack 2>&1
                     fi
+                    echo '--- guest startup launcher output'
+                    tail -n 80 $STAGE/data/takeover.log 2>&1
+                    tail -n 80 $STAGE/data/zygote_exec.log 2>&1
                     echo '--- guest startup crash records (last 3000 log entries)'
                     timeout 10 logcat -b all -d -t 3000 -v threadtime 2>/dev/null | grep -a -i -E 'zygote|system_server|app_process64|AndroidRuntime|FATAL EXCEPTION|Fatal signal|Abort message|linker|NoClassDefFoundError|NoSuchMethodError|BOOT FAILURE|art::|libc|dex2oat|odrefresh|apexd' | tail -n 400
                     echo '--- kernel fatal and process-kill records'
                     timeout 5 dmesg -T 2>/dev/null | grep -a -i -E 'zygote|system_server|app_process|killed process|oom|segfault|avc: denied' | tail -n 100
+                    if [ \$startup_stuck -eq 1 ]; then
+                        case \"\$(readlink /proc/\$zygote_pid/exe 2>/dev/null)\" in
+                            */app_process64|*/app_process32)
+                                if [ \"\$(readlink /proc/\$zygote_pid/ns/mnt 2>/dev/null)\" = \"\$(cat $STAGE/guest_mntns 2>/dev/null)\" ]; then
+                                    kill -9 \$zygote_pid 2>/dev/null
+                                    echo \"Stopped the stalled guest app_process pid \$zygote_pid before safe return\"
+                                fi ;;
+                        esac
+                    fi
                 } >> $STAGE/data/zygote_failure.log 2>&1
                 exec /system/bin/sh $STAGE/return_to_oneui.sh
             fi

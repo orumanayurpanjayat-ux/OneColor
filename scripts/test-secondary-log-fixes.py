@@ -17,6 +17,8 @@ PACKAGE_SIZES = (ROOT / "app-android/packages/sizes.txt").read_text()
 APP_BUILD = (ROOT / "app-android/app/build.gradle.kts").read_text()
 SWITCH = (ROOT / "switcher/assets/oneos_switch.sh").read_text()
 ZYGOTE_LAUNCHER = (ROOT / "switcher/native/zygote_launcher.c").read_text()
+GUEST_ROOT_SOURCE = (ROOT / "switcher/native/guest_root.c").read_text()
+BUILD_WORKFLOW = (ROOT / ".github/workflows/build.yml").read_text()
 
 
 class HostAppSplitTest(unittest.TestCase):
@@ -106,9 +108,47 @@ class ZygoteFailureCaptureTest(unittest.TestCase):
         self.assertIn(r"app_process_wait=\$((app_process_wait + 10))", body)
         self.assertIn(r"[ \$app_process_wait -ge 120 ] && startup_stuck=1", body)
         self.assertIn("dead=0; app_process_wait=0", body)
-        self.assertIn("app_process64 stayed alive without zygote registration", body)
+        self.assertIn("app_process64 pid \\$zygote_pid stayed alive without zygote registration", body)
         self.assertIn("live app_process startup state", body)
-        self.assertIn("/proc/$TAKEOVER_PID/wchan", body)
+        self.assertIn("/proc/\\$zygote_pid/wchan", body)
+        self.assertIn(r'for c in \$($BB pgrep -P \"$TAKEOVER_PID\" 2>/dev/null); do', body)
+        self.assertIn("child_exe=\\$(readlink /proc/\\$c/exe", body)
+        self.assertIn('case \\"\\$child_exe\\" in', body)
+        self.assertIn("takeover.log", body)
+        self.assertIn("zygote_exec.log", body)
+        self.assertIn("Stopped the stalled guest app_process pid", body)
+        self.assertIn('readlink /proc/\\$zygote_pid/ns/mnt', body)
+
+    def test_guest_start_records_launcher_exit_status(self):
+        launch = START.split('echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."', 1)[1]
+        non_root = launch.split("exec /data/adb/oneos/bin/su --launch", 1)[1]
+        self.assertIn("/data/zygote_exec\nZYGOTE_EXIT=$?", non_root)
+        self.assertIn("guest zygote launcher exited with status $ZYGOTE_EXIT", non_root)
+        self.assertIn('exit "$ZYGOTE_EXIT"', non_root)
+        self.assertNotIn("exec /data/zygote_exec", non_root)
+        if not shutil.which("bash"):
+            self.skipTest("bash is required to exercise the launcher exit-status handoff")
+        with tempfile.TemporaryDirectory() as temp:
+            launcher = Path(temp) / "zygote_exec"
+            launcher.write_text("#!/bin/sh\nexit 23\n")
+            launcher.chmod(0o755)
+            tail = START.rsplit("/data/zygote_exec\n", 1)[1]
+            result = subprocess.run(
+                ["bash", "-c", f'"{launcher}"\n{tail}'], capture_output=True, text=True
+            )
+            self.assertEqual(23, result.returncode, result.stderr)
+            self.assertIn("exited with status 23", result.stdout)
+
+    def test_kernel_su_launcher_reports_guest_process_exit_status(self):
+        launch = GUEST_ROOT_SOURCE.split("static int launch(void)", 1)[1].split(
+            "int main(int argc", 1
+        )[0]
+        self.assertIn('log_child_status("app_process",pid,w)', launch)
+        self.assertIn('log_child_status("app_process launcher",pid,w)', launch)
+        self.assertIn('log_child_status("zygisk injector",injector,result)', launch)
+        self.assertIn("WIFEXITED(status)", GUEST_ROOT_SOURCE)
+        self.assertIn("WIFSIGNALED(status)", GUEST_ROOT_SOURCE)
+        self.assertIn("-o switcher/assets/guest_root switcher/native/guest_root.c", BUILD_WORKFLOW)
 
     def test_live_app_process_is_not_returned_early_and_timeout_is_bounded(self):
         if not shutil.which("bash"):
@@ -116,9 +156,12 @@ class ZygoteFailureCaptureTest(unittest.TestCase):
         decision = self._startup_decision().replace("$STAGE", "/tmp/stage").replace("$TAKEOVER_PID", "777")
         prefix = r'''\
 pidof() { [ "$MOCK_ZYGOTE" = 1 ] && [ "$1" = zygote64 ]; }
+busybox() { "$@"; }
+pgrep() { [ "$1" = -P ] && [ -n "$MOCK_CHILD_PID" ] && printf '%s\n' "$MOCK_CHILD_PID"; }
 readlink() {
     case "$1" in
         /proc/777/exe) printf '%s\n' "$MOCK_EXE" ;;
+        /proc/778/exe) printf '%s\n' "$MOCK_CHILD_EXE" ;;
         /proc/777/ns/mnt) printf '%s\n' 'mnt:[42]' ;;
         *) command readlink "$@" ;;
     esac
@@ -129,10 +172,20 @@ cat() {
         *) command cat "$@" ;;
     esac
 }
-dead=0; app_process_wait=0
+dead=0; app_process_wait=0; BB=busybox
 '''
         live = prefix + (decision + "\n") * 12 + 'printf "%s:%s:%s\\n" "$dead" "$app_process_wait" "$startup_stuck"\n'
         result = subprocess.run(["bash", "-c", live], env=dict(os.environ, MOCK_EXE="/system/bin/app_process64"), capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("0:120:1", result.stdout.strip())
+
+        child_live = prefix + (decision + "\n") * 12 + 'printf "%s:%s:%s\\n" "$dead" "$app_process_wait" "$startup_stuck"\n'
+        result = subprocess.run(
+            ["bash", "-c", child_live],
+            env=dict(os.environ, MOCK_EXE="/data/adb/oneos/bin/su", MOCK_CHILD_PID="778", MOCK_CHILD_EXE="/system/bin/app_process64"),
+            capture_output=True,
+            text=True,
+        )
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("0:120:1", result.stdout.strip())
 

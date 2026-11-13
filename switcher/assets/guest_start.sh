@@ -2680,4 +2680,7 @@ if [ -f /data/oneos_root/enabled ]; then
     /system/bin/sh /data/oneos_runtime.sh late > /data/adb/oneos/run/late.log 2>&1 &
     exec /data/adb/oneos/bin/su --launch
 fi
-exec /data/zygote_exec
+/data/zygote_exec
+ZYGOTE_EXIT=$?
+echo "[Pivoted Root] guest zygote launcher exited with status $ZYGOTE_EXIT (wait status may encode a signal)"
+exit "$ZYGOTE_EXIT"
