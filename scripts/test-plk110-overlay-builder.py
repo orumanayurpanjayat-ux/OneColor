@@ -23,6 +23,7 @@ class Plk110OverlayBuilderTest(unittest.TestCase):
         self.assertIn('image.seek(1080)', BUILDER)
         self.assertIn('"$DEBUGFS" -R stats "$IMG"', BUILDER)
         self.assertLess(BUILDER.index("IMAGE_SHA"), BUILDER.index('"$ROOT/scripts/make-overlays.sh"'))
+        self.assertIn('sh "$ROOT/scripts/make-overlays.sh"', BUILDER)
         self.assertIn("Refusing to reuse an existing output path", BUILDER)
 
     def test_apktool_is_pinned_and_the_action_does_not_upload_the_source_image(self):

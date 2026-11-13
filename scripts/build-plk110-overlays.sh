@@ -86,7 +86,7 @@ PYEOF
 "$DEBUGFS" -R stats "$IMG" >/dev/null 2>&1 || { echo 'debugfs could not read the PLK110 system image.' >&2; exit 2; }
 
 echo "Building image-aware overlays from PLK110 system.img ($IMAGE_SHA)"
-APKTOOL="$APKTOOL" DEBUGFS="$DEBUGFS" "$ROOT/scripts/make-overlays.sh" "$IMG" "$OUT"
+APKTOOL="$APKTOOL" DEBUGFS="$DEBUGFS" sh "$ROOT/scripts/make-overlays.sh" "$IMG" "$OUT"
 
 # These files are required for this set's guest startup and cross-system
 # safeguards. Optional camera and UI overlays are recorded in the manifest.
