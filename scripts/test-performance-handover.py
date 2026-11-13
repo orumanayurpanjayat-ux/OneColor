@@ -33,7 +33,8 @@ selected() { return 0; }
 plain_tree() { [ ! -L "$1" ]; }
 fail() { echo "$*" >&2; exit 3; }
 ''' + body
-            result = subprocess.run(['sh','-c',script],capture_output=True,text=True)
+            # Keep the trace captured; unittest shows it only if this scenario fails.
+            result = subprocess.run(['sh','-x','-c',script],capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stdout+result.stderr)
 
     def test_snapshot_and_compare_restore(self):
