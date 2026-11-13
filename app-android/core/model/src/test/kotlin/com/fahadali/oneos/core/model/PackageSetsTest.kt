@@ -222,7 +222,7 @@ class PackageSetsTest {
         // Store).
         val a = ShaList.parse(shas(n6)).entries
         val g = ShaList.parse(shas(xin)).entries
-        assertEquals(24, a.count { (n, h) -> g[n] == h }) // 0.4.63: + oplus_odm_ai.tar
+        assertEquals(25, a.count { (n, h) -> g[n] == h }) // + PermissionController_patched.apk, 0.4.63: + oplus_odm_ai.tar
         for (n in listOf("vold_patched", "service.incremental_patched.so", "surfaceflinger_patched")) assertEquals(n, a[n], g[n])
         // The Pixel set's files are its own but the in-guest app, the same build in every set.
         val c = ShaList.parse(shas(pixel)).entries
