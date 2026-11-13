@@ -11,12 +11,25 @@ JAR="$1"; PATCHER="$2"; OUT="$3"
 [ -f "$JAR" ] && [ -f "$PATCHER" ] && [ -n "$OUT" ] || { echo "usage: $0 <built jar> <patcher.py> <out jar>" >&2; exit 2; }
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 APKTOOL=${APKTOOL:-$(ls "$ROOT"/mysticgsi/tools/apktool/*.jar | head -1)}
+case "$APKTOOL" in
+    java\ -jar\ *)
+        APKTOOL_JAR=${APKTOOL#java -jar }
+        run_apktool() { java -jar "$APKTOOL_JAR" "$@"; }
+        ;;
+    *.jar)
+        run_apktool() { java -jar "$APKTOOL" "$@"; }
+        ;;
+    *)
+        # Keep support for an apktool executable or a command with arguments.
+        run_apktool() { $APKTOOL "$@"; }
+        ;;
+esac
 JAR=$(realpath "$JAR"); PATCHER=$(realpath "$PATCHER"); OUT=$(realpath -m "$OUT")
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
-$APKTOOL d -q -f -r -o "$W/src" "$JAR"
+run_apktool d -q -f -r -o "$W/src" "$JAR"
 DIRS=$(python3 -I "$PATCHER" "$W/src")
 [ -n "$DIRS" ] || { echo "$PATCHER changed nothing" >&2; exit 1; }
-$APKTOOL b -q -o "$W/rebuilt.jar" "$W/src"
+run_apktool b -q -o "$W/rebuilt.jar" "$W/src"
 cp "$JAR" "$W/out.jar"
 for d in $DIRS; do
     DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"

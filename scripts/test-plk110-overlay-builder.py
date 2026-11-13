@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILDER = (ROOT / "scripts/build-plk110-overlays.sh").read_text()
 WORKFLOW = (ROOT / ".github/workflows/plk110-overlays.yml").read_text()
 PATCH_NOTE = (ROOT / "docs/patch-notes/2026-11-13-plk110-coloros-gsi.md").read_text()
+PATCH_BUILT_JAR = (ROOT / "scripts/patch-built-jar.sh").read_text()
 
 
 class Plk110OverlayBuilderTest(unittest.TestCase):
@@ -34,6 +35,15 @@ class Plk110OverlayBuilderTest(unittest.TestCase):
     def test_unknown_vold_build_reports_full_crashrecovery_hash(self):
         overlay_builder = (ROOT / "scripts/make-overlays.sh").read_text()
         self.assertIn('sha(d) if d else "missing"', overlay_builder)
+
+    def test_patch_built_jar_runs_pinned_apktool_jar_through_java(self):
+        self.assertIn('run_apktool() { java -jar "$APKTOOL" "$@"; }', PATCH_BUILT_JAR)
+        self.assertIn("java\\ -jar\\ *)", PATCH_BUILT_JAR)
+        self.assertIn("${APKTOOL#java -jar }", PATCH_BUILT_JAR)
+        self.assertIn("run_apktool d -q -f -r", PATCH_BUILT_JAR)
+        self.assertIn("run_apktool b -q", PATCH_BUILT_JAR)
+        self.assertNotIn("$APKTOOL d -q", PATCH_BUILT_JAR)
+        self.assertNotIn("$APKTOOL b -q", PATCH_BUILT_JAR)
 
     def test_apktool_is_pinned_and_the_action_does_not_upload_the_source_image(self):
         self.assertIn("apktool_3.0.3.jar", WORKFLOW)

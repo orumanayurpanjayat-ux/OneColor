@@ -10,6 +10,7 @@ on:
       - 'scripts/test-plk110-overlay-builder.py'
       - 'scripts/test-oplus-boot-hangs.py'
       - 'scripts/make-overlays.sh'
+      - 'scripts/patch-built-jar.sh'
       - 'switcher/patches/oplus_boot_hangs.py'
       - 'switcher/patches/**'
   workflow_dispatch:
@@ -84,6 +85,7 @@ jobs:
           python3 scripts/test-plk110-overlay-builder.py
           python3 scripts/test-oplus-boot-hangs.py
           bash -n scripts/build-plk110-overlays.sh
+          bash -n scripts/patch-built-jar.sh
 
       - name: Build overlays from PLK110 image
         run: |
