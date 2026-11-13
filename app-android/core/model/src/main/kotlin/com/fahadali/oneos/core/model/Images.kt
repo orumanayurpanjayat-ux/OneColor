@@ -211,9 +211,8 @@ object Images {
 
     /**
      * The exact PLK110 ColorOS 17 GSI supplied for S24 Ultra validation. Its
-     * archive and inner ext4 image are separately pinned. The X9U-IN patch
-     * files are reused byte-for-byte as requested, but this system has not
-     * been boot-tested on a Galaxy S24 Ultra.
+     * archive and inner ext4 image are separately pinned, and its overlay set
+     * is rebuilt from this image. It has not been boot-tested on a Galaxy S24 Ultra.
      */
     val COLOROS17_PLK110 = ImageRef(
         id = ID_COLOROS17_PLK110,
@@ -221,7 +220,7 @@ object Images {
         shortName = "PLK110 ColorOS GSI",
         name = "ColorOS 17",
         variant = "PLK110 GSI",
-        blurb = "Experimental ColorOS 17 GSI. It uses the pinned Find X9 Ultra IN patch files and has not been boot-tested on a Galaxy S24 Ultra.",
+        blurb = "Experimental ColorOS 17 GSI. OneOS uses patches built from this pinned PLK110 image; it has not been boot-tested on a Galaxy S24 Ultra.",
         downloadUrl = null,
         sdk = 37,
         buildId = "CP2A.260605.016",

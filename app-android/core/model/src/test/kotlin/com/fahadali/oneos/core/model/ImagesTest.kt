@@ -119,6 +119,8 @@ class ImagesTest {
         assertNull(plk.testedOn)
         assertEquals(plk, Images.byGzSize(plk.gzBytes))
         assertEquals("ColorOS 17 · PLK110 GSI (Android 17)", plk.displayName)
+        assertTrue(plk.blurb.contains("patches built from this pinned PLK110 image"))
+        assertTrue(!plk.blurb.contains("Find X9 Ultra"))
         assertEquals(xin, Images.byRawSize(14_669_168_640L))
         assertEquals("Find X9 Ultra IN", Images.shortName(xin.id))
         // 0.4.51: the debloated Find X9 Ultra build is retired; a retired image's name stays known (old stages,
