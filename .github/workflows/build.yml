@@ -156,6 +156,8 @@ jobs:
           test -s scripts/check-staging-apk.py
           test -s scripts/build-guest-manager.sh
           test -s scripts/test-plk110-surfaceflinger.py
+          test -s scripts/test-plk110-overlay-builder.py
+          test -s scripts/build-plk110-overlays.sh
           test -s scripts/test-secondary-log-fixes.py
           test -s scripts/test-host-apex-bind.py
           test -s switcher/assets/oneos_switch.sh
@@ -173,6 +175,9 @@ jobs:
 
       - name: Test PLK110 SurfaceFlinger patch safeguards
         run: python3 scripts/test-plk110-surfaceflinger.py
+
+      - name: Test PLK110 image-bound overlay builder
+        run: python3 scripts/test-plk110-overlay-builder.py
 
       - name: Test PLK110 secondary log fixes
         run: python3 scripts/test-secondary-log-fixes.py
@@ -198,7 +203,7 @@ jobs:
           ls -lh switcher/assets/zygote_exec
 
       - name: Check guest shell syntax
-        run: bash -n app-android/app/src/full/assets/root/oneos_root.sh switcher/assets/guest_prepare.sh switcher/assets/guest_start.sh switcher/assets/oneos_switch.sh
+        run: bash -n app-android/app/src/full/assets/root/oneos_root.sh switcher/assets/guest_prepare.sh switcher/assets/guest_start.sh switcher/assets/oneos_switch.sh scripts/build-plk110-overlays.sh
 
       - name: Test thermal profiles and performance handover
         run: |
