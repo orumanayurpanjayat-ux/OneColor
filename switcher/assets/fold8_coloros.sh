@@ -119,6 +119,10 @@ perf_write() {
         perf_log "yielding $tag to external controller ($(cat "$node"))"
         touch "$PSTATE/$tag.external"; return 0
     fi
+    if [ ! -f "$PSTATE/$tag.last" ] && [ "$(cat "$node")" != "$(cat "$PSTATE/$tag.before")" ]; then
+        perf_log "yielding $tag to external controller before first request ($(cat "$node"))"
+        touch "$PSTATE/$tag.external"; return 0
+    fi
     echo "$target" > "$node"
     cat "$node" > "$PSTATE/$tag.last"
     perf_log "requested $tag=$target; effective $(cat "$node")"
@@ -139,7 +143,8 @@ perf_worker() {
     [ -n "${gp:-}" ] || return 1
     gpu_top=$(gpu_max)
     case "$gpu_top" in ''|0|*[!0-9]*) return 1;; esac
-    mode=$(cat "$PSTATE/mode"); profile=${ONEOS_HEAT_CAP_PROFILE:-balanced}; released=0; level=-1
+    mode=$(cat "$PSTATE/mode"); profile=${ONEOS_HEAT_CAP_PROFILE:-balanced}; gpu_only=0; released=0; level=-1
+    [ "${1:-}" != gpu-only ] || gpu_only=1
     case "$profile" in
         balanced) t1=45; t2=47; t3=50; p1=80; p2=65; p3=50 ;;
         smoother) t1=47; t2=50; t3=53; p1=90; p2=80; p3=65 ;;
@@ -166,30 +171,38 @@ perf_worker() {
             fi
         fi
         if [ "$released" = 0 ]; then
-            if [ "$profile" = maximum ]; then
-                [ -n "$skin" ] && [ -n "$gpu_t" ] || { sleep 2; continue; }
+            if [ "$gpu_only" = 1 ]; then
+                # The main OneOS thermal worker owns CPU ceilings in the capped
+                # profiles. This worker owns only the GPU request in that mode.
+                released=1; touch "$PSTATE/released"
             else
-                [ -n "$skin" ] && awk -v s="$skin" -v g="$gpu_t" 'BEGIN{exit !(s<38&&g<65000)}' || { sleep 2; continue; }
+                if [ "$profile" = maximum ]; then
+                    [ -n "$skin" ] && [ -n "$gpu_t" ] || { sleep 2; continue; }
+                else
+                    [ -n "$skin" ] && awk -v s="$skin" -v g="$gpu_t" 'BEGIN{exit !(s<38&&g<65000)}' || { sleep 2; continue; }
+                fi
+                before=$(cat "$PSTATE/cpu.before")
+                prime=$(cat /sys/devices/system/cpu/cpufreq/policy*/cpuinfo_max_freq | awk '$1>m{m=$1} END{print m}')
+                # A deliberately restricted host is preserved. Live repair is an
+                # explicit diagnostic command for the already observed stale vote.
+                power_save=$(cat "$PSTATE/power_save")
+                if [ "$mode" != live ] && { [ "$power_save" = 1 ] || { [ "$power_save" != 0 ] && [ "$before" != -1 ] && [ "$before" -lt "$prime" ]; }; }; then
+                    perf_log 'host power saving or unknown restricted policy; preserving limits'; return 0
+                fi
+                perf_write /sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit cpu -1
+                released=1; touch "$PSTATE/released"
             fi
-            before=$(cat "$PSTATE/cpu.before")
-            prime=$(cat /sys/devices/system/cpu/cpufreq/policy*/cpuinfo_max_freq | awk '$1>m{m=$1} END{print m}')
-            # A deliberately restricted host is preserved. Live repair is an
-            # explicit diagnostic command for the already observed stale vote.
-            power_save=$(cat "$PSTATE/power_save")
-            if [ "$mode" != live ] && { [ "$power_save" = 1 ] || { [ "$power_save" != 0 ] && [ "$before" != -1 ] && [ "$before" -lt "$prime" ]; }; }; then
-                perf_log 'host power saving or unknown restricted policy; preserving limits'; return 0
-            fi
-            perf_write /sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit cpu -1
-            released=1; touch "$PSTATE/released"
         fi
         if [ "$new" != "$level" ]; then
-                case "$new" in 0) pct=100;; 1) pct=$p1;; 2) pct=$p2;; *) pct=$p3;; esac
-            for p in /sys/devices/system/cpu/cpufreq/policy*; do
-                hw=$(cat "$p/cpuinfo_max_freq"); ceiling=$(cat "$PSTATE/${p##*/}.before")
-                if [ "$mode" = live ] || [ "$(cat "$PSTATE/power_save")" = 0 ]; then ceiling=$hw; fi
-                target=$((hw / 100 * pct)); [ "$target" -le "$ceiling" ] || target=$ceiling
-                perf_write "$p/scaling_max_freq" "${p##*/}" "$target"
-            done
+            case "$new" in 0) pct=100;; 1) pct=$p1;; 2) pct=$p2;; *) pct=$p3;; esac
+            if [ "$gpu_only" != 1 ]; then
+                for p in /sys/devices/system/cpu/cpufreq/policy*; do
+                    hw=$(cat "$p/cpuinfo_max_freq"); ceiling=$(cat "$PSTATE/${p##*/}.before")
+                    if [ "$mode" = live ] || [ "$(cat "$PSTATE/power_save")" = 0 ]; then ceiling=$hw; fi
+                    target=$((hw / 100 * pct)); [ "$target" -le "$ceiling" ] || target=$ceiling
+                    perf_write "$p/scaling_max_freq" "${p##*/}" "$target"
+                done
+            fi
             ceiling=$(cat "$PSTATE/gpu.before"); if [ "$mode" = live ] || [ "$(cat "$PSTATE/power_save")" = 0 ]; then ceiling=$gpu_top; fi
             target=$(gpu_freqs | awk -v max="$((gpu_top * pct / 100))" -v ceiling="$ceiling" '{for(i=1;i<=NF;i++){v=$i;if(v<=max&&v<=ceiling&&v>m)m=v}}END{print m}')
             # No table step under this level's cap: the lowest one, never an empty write.
@@ -198,7 +211,10 @@ perf_worker() {
             perf_log "thermal level $level->$new skin=${skin:-unknown} gpu=$gpu_t"
             level=$new
         fi
-        sleep 2
+        # dumpsys crosses into the guest namespace and costs CPU. Kernel thermal
+        # control remains active between samples; five seconds keeps this extra
+        # userspace policy responsive without waking the worker every two seconds.
+        sleep 5
     done
 }
 
@@ -363,6 +379,7 @@ performance-live)
     perf_worker
     ;;
 performance-worker) perf_worker ;;
+performance-worker-gpu) perf_worker gpu-only ;;
 performance-restore)
     if perf_valid; then
         touch "$PSTATE/stop"

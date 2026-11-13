@@ -142,6 +142,63 @@ grep -q 'requested policy6=4742400' "$STAGE/performance_handover.log"
 grep -q 'requested gpu=1300' "$STAGE/performance_handover.log"
 ''')
 
+    def test_smoother_profile_caps_gpu_without_competing_on_cpu(self):
+        self.run_case('''
+ONEOS_HEAT_CAP_PROFILE=smoother
+perf_guest() { echo 123; }
+timeout() {
+ if [ "$2" = settings ]; then echo 0; else
+  echo 'Current temperatures from HAL:'
+  echo 'Temperature{mValue=50.0, mType=3, mName=SKIN, mStatus=0}'
+  echo 'Current cooling devices'
+ fi
+}
+perf_snapshot host
+sleep() { touch "$PSTATE/stop"; }
+perf_worker gpu-only
+grep -q 'requested gpu=826' "$STAGE/performance_handover.log"
+! grep -q 'requested policy' "$STAGE/performance_handover.log"
+[ "$(cat "$(dirname "$PSTATE")/../sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit")" = 1267200 ]
+[ "$(cat "$(dirname "$PSTATE")/../sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq")" = 1228800 ]
+''')
+
+    def test_first_write_yields_to_votes_changed_after_snapshot(self):
+        self.run_case('''
+perf_snapshot live
+C=$(dirname "$PSTATE")/../sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq
+G=$(dirname "$PSTATE")/../sys/kernel/gpu/gpu_max_clock
+echo 826 > "$C"
+echo 646 > "$G"
+perf_write "$C" policy0 3628800
+perf_write "$G" gpu 1300
+[ "$(cat "$C")" = 826 ] && [ -f "$PSTATE/policy0.external" ]
+[ "$(cat "$G")" = 646 ] && [ -f "$PSTATE/gpu.external" ]
+grep -q 'before first request' "$STAGE/performance_handover.log"
+perf_restore
+[ "$(cat "$C")" = 826 ] && [ "$(cat "$G")" = 646 ]
+''')
+
+    def test_gpu_worker_yields_to_external_vote_before_its_first_thermal_cap(self):
+        self.run_case('''
+ONEOS_HEAT_CAP_PROFILE=smoother
+perf_snapshot host
+G=$(dirname "$PSTATE")/../sys/kernel/gpu/gpu_max_clock
+echo 646 > "$G"
+perf_guest() { echo 123; }
+timeout() {
+ if [ "$2" = settings ]; then echo 0; else
+  echo 'Current temperatures from HAL:'
+  echo 'Temperature{mValue=50.0, mType=3, mName=SKIN, mStatus=0}'
+  echo 'Current cooling devices'
+ fi
+}
+sleep() { touch "$PSTATE/stop"; }
+perf_worker gpu-only
+[ "$(cat "$G")" = 646 ] && [ -f "$PSTATE/gpu.external" ]
+! grep -q 'requested policy' "$STAGE/performance_handover.log"
+grep -q 'before first request' "$STAGE/performance_handover.log"
+''')
+
     def test_idle_host_vote_is_released_when_power_saving_is_off(self):
         self.run_case('''
 timeout() {

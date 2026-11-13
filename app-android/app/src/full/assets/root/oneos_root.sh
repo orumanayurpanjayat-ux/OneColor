@@ -1255,7 +1255,7 @@ do_launch() {
     # This launch's Google services choice (the Switch screen; Prepare wrote 0),
     # its performance profile (Advanced; Prepare wrote balanced), its Samsung IMS choice
     # and (0.4.32) its Knox edm stub choice (both Advanced; Prepare wrote 0): the
-    # five lines of session.env a launch changes, after every check. The next
+    # six lines of session.env a launch changes, after every check. The next
     # launch writes its own. (Before the test root's stop, so the tests see it.)
     sed -e "s/^ONEOS_GUEST_HIDE_GMS=.*/ONEOS_GUEST_HIDE_GMS=$gms/" -e "s/^ONEOS_HEAT_CAP=.*/ONEOS_HEAT_CAP=$heat/" \
         -e "s/^ONEOS_HEAT_CAP_PROFILE=.*/ONEOS_HEAT_CAP_PROFILE=$heat_profile/" \

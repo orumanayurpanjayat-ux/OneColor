@@ -869,24 +869,21 @@ more, so switching it changes nothing. The UI activator sets
 that setting (guest_blur_no_thermal.py removes only the thermal check), so
 "Reduce blur effects" keeps working across sessions.
 
-Since 0.4.23 a heat cap runs during every session, on every guest
-(oneos_switch.sh; owner: "cap only when hot").
-- Every 10 s it reads the guest's SKIN temperature, the same way the sampler
-  does.
-- From 45 °C (Samsung's SEVERE) it caps each cpufreq policy's
-  `scaling_max_freq` at 80% of `cpuinfo_max_freq`; from 47 °C at 65%; from
-  50 °C at 50%. Each level ends once the skin is 2 °C below where that level
-  began.
-- The first reading under 45 °C also lifts a cap One UI left from before the
-  switch (run 45 ran at half clock for that reason).
-- Only the sysfs request is written, so the kernel's own thermal limits still
-  apply. Each change is logged in `heat_cap.log`.
-- At the return, the keeper and return_to_oneui.sh (`heat_cap.active`) put
-  every policy back at full clock, and One UI's SSRM then sets its own caps.
-- Advanced > Performance and thermals offers Balanced (the default), Smoother
-  performance, and Maximum performance. The selected profile is recorded in
-  `ONEOS_HEAT_CAP` and `ONEOS_HEAT_CAP_PROFILE`; Maximum leaves thermal limiting
-  to Android and the kernel, and the Switch dialog explains the added heat risk.
+Advanced > Performance and thermals controls the session's CPU and GPU thermal
+policy. Balanced is the default: every 10 s, the CPU worker reads the guest's
+SKIN temperature and applies 80/65/50% CPU ceilings from 45/47/50 °C, with 2 °C
+hysteresis. Smoother performance uses 90/80/65% ceilings from 47/50/53 °C.
+
+Where the phone exposes the supported Samsung GPU request nodes, a separate GPU
+worker uses the same selected profile plus the GPU temperature sensor at 70/75/80
+°C. It owns only the GPU request while the CPU worker is active, and preserves
+the GPU ceiling captured from One UI when host power saving is on or unknown.
+Maximum performance adds no OneOS CPU or GPU cap; Android and kernel thermal
+controls remain active. The Switch confirmation explains the added heat risk.
+
+All changes are session scoped and logged in `heat_cap.log` or
+`performance_handover.log`. On return, OneOS restores only requests it still
+owns; the CPU thermal worker clears its caps before One UI resumes.
 
 "Feels like 60 Hz" (testers): the panel was at 120 Hz the whole time, but
 SurfaceFlinger rendered at 60 Hz for 47 s and at 120 Hz for 74 s by the 90 s

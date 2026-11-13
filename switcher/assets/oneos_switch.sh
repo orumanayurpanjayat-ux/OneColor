@@ -3411,14 +3411,13 @@ done
 " </dev/null >/data/local/tmp/ui_activator.log 2>&1 &
 
 # Samsung CPU/GPU votes survive the host framework; capability-detected on every profile.
-# 0.4.38: only with maximum performance (Advanced). With a capped profile, the heat cap
-# below caps from 45 C and lifts One UI's stale vote itself; the worker only releases under
-# 38 C and caps after a release, so a hot guest had no cap at all (F8U, Find N6 global:
-# 55.6 C skin at full clock).
-if [ "${ONEOS_HEAT_CAP:-1}" != 1 ]; then
-    STAGE="$STAGE" BB="$BB" "$BB" nohup /system/bin/sh "$STAGE/fold8_coloros.sh" performance-worker </dev/null >>"$STAGE/performance_handover.log" 2>&1 &
+# Maximum uses the combined handover worker. Capped profiles keep CPU ownership in the
+# thermal worker below and start a GPU-only worker here, so the two never compete for CPUs.
+if [ "${ONEOS_HEAT_CAP:-1}" = 1 ]; then
+    STAGE="$STAGE" BB="$BB" "$BB" nohup /system/bin/sh "$STAGE/fold8_coloros.sh" performance-worker-gpu </dev/null >>"$STAGE/performance_handover.log" 2>&1 &
+    echo "$(date +%T) CPU thermal worker owns CPU policies; GPU thermal worker runs where supported" >> "$STAGE/performance_handover.log"
 else
-    echo "$(date +%T) heat cap on: the worker is not started (the heat cap owns the limits)" >> "$STAGE/performance_handover.log"
+    STAGE="$STAGE" BB="$BB" "$BB" nohup /system/bin/sh "$STAGE/fold8_coloros.sh" performance-worker </dev/null >>"$STAGE/performance_handover.log" 2>&1 &
 fi
 
 # Session sampler (run 44: nothing was recorded after the 90 s round; window
