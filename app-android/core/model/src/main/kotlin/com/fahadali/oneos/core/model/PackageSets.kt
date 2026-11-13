@@ -226,6 +226,7 @@ object PackageSets {
         PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
         PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
         PackageFile(GUEST_APP, FileRole.GUEST_APP),
+        PackageFile("PermissionController_patched.apk", FileRole.GUEST_FIX),
         PackageFile("ims-ext-common_patched.jar", FileRole.FRAMEWORK_JAR),
         PackageFile("oplus-telephony-common_patched.jar", FileRole.FRAMEWORK_JAR),
         PackageFile("surfaceflinger_patched", FileRole.SURFACEFLINGER),
@@ -256,7 +257,7 @@ object PackageSets {
             // 0.4.63: OPPO's AI engine for the guest's /odm (lock screen depth effect, AI features).
             PackageFile(ODM_AI, FileRole.GUEST_FIX),
         omitted = listOf(TETHERING),
-        approxBytes = 763_750_051L,
+        approxBytes = 789_758_712L,
         hasReturnApp = true,
     )
 
@@ -300,7 +301,7 @@ object PackageSets {
             PackageFile("SystemUI_wave.dex", FileRole.GUEST_FIX) +
             PackageFile("OneOSWaveRepack.dex", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, WALLPAPER_GRID_RRO),
-        approxBytes = 644_525_755L,
+        approxBytes = 670_534_416L,
         hasReturnApp = true,
     )
 

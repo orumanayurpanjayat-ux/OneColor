@@ -5919,13 +5919,24 @@ bind_host_app() {
     # and SystemUI crash-looped (no status bar, quick settings or navigation).
     # Then One UI's updated copy (/data/app, the same package and signer), bound
     # over the system one in a private folder.
-    a=$(ls "$1"/*.apk 2>/dev/null | head -n 1)
-    if [ -n "$a" ] && [ "$($BB head -c 2 "$a" 2>/dev/null)" = PK ] && [ "$($BB stat -c %s "$a" 2>/dev/null || echo 0)" -gt 65536 ] &&
-       $BB unzip -l "$a" AndroidManifest.xml >/dev/null 2>&1; then
+    # OEM app folders can put a small resource-only split before the base APK
+    # (PLK110: CaptivePortalLoginGoogle-hdpi.apk was picked first). Check every
+    # candidate so a later valid base APK is not missed.
+    a=""
+    for candidate in "$1"/*.apk; do
+        [ -f "$candidate" ] || continue
+        [ "$($BB head -c 2 "$candidate" 2>/dev/null)" = PK ] || continue
+        [ "$($BB stat -c %s "$candidate" 2>/dev/null || echo 0)" -gt 65536 ] || continue
+        $BB unzip -l "$candidate" AndroidManifest.xml >/dev/null 2>&1 || continue
+        a="$candidate"
+        break
+    done
+    if [ -n "$a" ]; then
         $BB mount --bind "$1" "$2" && echo "Host $(basename "$1") -> $2"
         return 0
     fi
-    echo "!!! host $(basename "$1"): ${a:-no APK} is not a readable APK ($($BB stat -c %s "$a" 2>/dev/null || echo none) bytes)"
+    first=$(ls "$1"/*.apk 2>/dev/null | head -n 1)
+    echo "!!! host $(basename "$1"): ${first:-no APK} is not a readable base APK ($($BB stat -c %s "$first" 2>/dev/null || echo none) bytes)"
     u=""
     [ -n "$3" ] && u=$(ls -d /data/app/*/"$3"-*/base.apk /data/app/"$3"-*/base.apk 2>/dev/null | head -n 1)
     if [ -n "$u" ] && [ "$($BB head -c 2 "$u" 2>/dev/null)" = PK ] && $BB unzip -l "$u" AndroidManifest.xml >/dev/null 2>&1 &&

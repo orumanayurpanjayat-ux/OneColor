@@ -304,9 +304,15 @@ CD=/data/oneos_composer_before_sf.log
     # debug (HIDL only); one named service, bounded.
     timeout 5 dumpsys android.hardware.graphics.composer3.IComposer/default 2>&1 | head -n 400 ||
         echo "dumpsys of the composer: no answer in 5 s"
-    if command -v lshal >/dev/null 2>&1; then
-        timeout 5 lshal debug android.hardware.graphics.composer3.IComposer/default 2>&1 ||
-            echo "lshal debug: no answer in 5 s"
+    if service check android.hardware.graphics.composer3.IComposer/default 2>/dev/null | grep -q ': found'; then
+        echo "lshal debug: skipped (AIDL composer; lshal only debugs HIDL services)"
+    elif command -v lshal >/dev/null 2>&1; then
+        hidl=$(timeout 5 lshal list -i 2>/dev/null | grep -oE 'android\.hardware\.graphics\.composer@[0-9.]+::IComposer/default' | head -n 1)
+        if [ -n "$hidl" ]; then
+            timeout 5 lshal debug "$hidl" 2>&1 || echo "lshal debug: no answer in 5 s"
+        else
+            echo "lshal debug: no HIDL composer service"
+        fi
     else
         echo "no lshal in this image"
     fi

@@ -91,9 +91,8 @@ object AppAssets {
         files(ctx, set, profile).associate { it.name to it.sha256 } + ("bin/oneos_root.sh" to BuildConfig.ROOT_SCRIPT_SHA256)
 
     /**
-     * sha256 -> the sources of every set file the APK does not carry (0.4.41: one Drive id; empty in a packed
-     * test build). 0.4.53: several per file: "gh:<tag>", a GitHub release asset, and Drive copies in other
-     * folders, each with its own download limit ([SetDownloader.url]).
+     * sha256 -> sources for set files the APK does not carry: GitHub release assets, SourceForge, and Drive.
+     * A single exact raw-GitHub source is also pinned for the upstream PermissionController compatibility APK.
      */
     fun remoteIds(ctx: Context): Map<String, List<String>> =
         runCatching { read(ctx, "oneos/files/remote.txt") }.getOrNull()?.toString(Charsets.UTF_8)?.lines()
