@@ -156,6 +156,7 @@ data class PackageSet(
 object PackageSets {
     const val ID_N6_F8U = "n6-f8u"
     const val ID_X9U_IN_SULTRA = "x9u-in-sultra"
+    const val ID_COLOROS17_PLK110_SULTRA = "coloros17-plk110-sultra"
     const val ID_PIXEL_F8U = "pixel-f8u"
     const val ID_PIXEL_F8 = "pixel-f8"
     const val ID_PIXEL_SULTRA = "pixel-sultra"
@@ -301,6 +302,12 @@ object PackageSets {
         omitted = listOf(TETHERING, WALLPAPER_GRID_RRO),
         approxBytes = 644_525_755L,
         hasReturnApp = true,
+    )
+
+    /** Exact X9U-IN package pins, exposed as a distinct image-bound set for the experimental PLK110 GSI. */
+    val COLOROS17_PLK110_SULTRA = X9U_IN_SULTRA.copy(
+        id = ID_COLOROS17_PLK110_SULTRA,
+        imageId = Images.ID_COLOROS17_PLK110,
     )
 
     /** The Pixel sets' files (root's SET_PIXEL): the same for every Pixel image. */
@@ -710,7 +717,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16, ORIGINOS)
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, COLOROS17_PLK110_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16, ORIGINOS)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

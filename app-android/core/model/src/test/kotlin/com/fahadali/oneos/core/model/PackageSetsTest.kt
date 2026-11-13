@@ -11,6 +11,7 @@ class PackageSetsTest {
     private val n6 = PackageSets.N6_F8U
     private val pixel = PackageSets.PIXEL_F8U
     private val xin = PackageSets.X9U_IN_SULTRA
+    private val plk = PackageSets.COLOROS17_PLK110_SULTRA
 
     private val x9uWavePayloads = setOf("SystemUI_wave.dex", "OneOSWaveRepack.dex")
 
@@ -31,6 +32,14 @@ class PackageSetsTest {
         assertEquals(setOf("GlobalVerifiedAddons.tar"), customHashes.keys - sharedHashes.keys)
     }
 
+    @Test fun plk110SetIsImageBoundButReusesOnlyTheRequestedX9uPins() {
+        assertEquals(xin.files, plk.files)
+        assertEquals(ShaList.parse(shas(xin)).entries, ShaList.parse(shas(plk)).entries)
+        assertEquals(guards(xin), guards(plk))
+        assertTrue(xin.imageId != plk.imageId)
+        assertTrue(shas(plk).contains("not been tested on the PLK110 image"))
+    }
+
     /** The 15 APEX payloads every set carries. */
     private val commonPayloads = listOf(
         "art", "i18n", "runtime", "sdkext", "crashrecovery", "extservices", "permission", "wifi",
@@ -47,9 +56,13 @@ class PackageSetsTest {
         assertEquals("out/overlays_n6g_r15", n6.sourceDir)
         assertEquals("out/overlays_x9u_in_r70", xin.sourceDir)
         assertEquals(Images.ID_FIND_X9U_IN, xin.imageId)
+        assertEquals("out/overlays_x9u_in_r70", plk.sourceDir)
+        assertEquals(Images.ID_COLOROS17_PLK110, plk.imageId)
+        assertEquals(xin.files, plk.files)
+        assertEquals(xin.approxBytes, plk.approxBytes)
         assertEquals("out/overlays_pixel_f8u_r17", pixel.sourceDir)
         assertEquals(
-            listOf(PackageSets.N6_GLOBAL_F8, n6, xin, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
+            listOf(PackageSets.N6_GLOBAL_F8, n6, xin, plk, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
                 PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.NOTHING_F8U, PackageSets.OXYGEN16, PackageSets.ORIGINOS),
             PackageSets.ALL,
         )

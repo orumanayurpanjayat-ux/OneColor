@@ -11,10 +11,14 @@ import java.util.Locale
  */
 enum class SystemFamily { COLOROS, PIXEL, INFINITYX, HYPEROS, NOTHING, OXYGENOS, ORIGINOS }
 
+/** Container format of the exact download pinned in [ImageRef.gzName]. */
+enum class ImageInputFormat { GZIP, ZIP }
+
 /**
- * One OneOS OS image as friends download it (a gzip of the ext4 system
- * image) and as root stages it (`$STAGE/system.raw`). Both hashes are pinned:
- * the app checks the .gz, root checks the unpacked bytes (AA4, XP2).
+ * One OneOS OS image as friends download it (usually a gzip of the ext4
+ * system image, sometimes a supported archive) and as root stages it
+ * (`$STAGE/system.raw`). Both hashes are pinned: the app checks the complete
+ * download, root checks the unpacked bytes (AA4, XP2).
  */
 data class ImageRef(
     val id: String,
@@ -67,13 +71,23 @@ data class ImageRef(
     val presentsGms: Boolean = false,
     /** Whose system it is: its guest data is kept only for an image of the same family. */
     val family: SystemFamily,
+    /** The selected image's verified download is a ZIP instead of the usual gzip stream. */
+    val inputFormat: ImageInputFormat = ImageInputFormat.GZIP,
+    /** A build-specific download page, when it is not on the OneOS mirror. */
+    val downloadUrlOverride: String? = null,
 ) {
     /**
      * The image's own download on the SourceForge mirror (0.4.59, project oneos-mirror, folder
      * images/): one file, resumable, from a mirror near the user. [downloadUrl] (the Drive
      * folder) stays the fallback.
      */
-    val mirrorUrl: String get() = "${Images.MIRROR_FILES_URL}$gzName/download"
+    val mirrorUrl: String get() = downloadUrlOverride ?: "${Images.MIRROR_FILES_URL}$gzName/download"
+
+    /** The string shown in checks, picker details, and error messages. */
+    val inputKind: String get() = when (inputFormat) {
+        ImageInputFormat.GZIP -> "gzip image"
+        ImageInputFormat.ZIP -> "ZIP archive"
+    }
 
     /**
      * A launch may hide Google services (`ONEOS_GUEST_HIDE_GMS=1`, [SessionEnv],
@@ -88,7 +102,7 @@ data class ImageRef(
     /** "ColorOS 17 · Find N6 global build", or just [name] when there is no [variant]. */
     val nameWithVariant: String get() = listOfNotNull(name, variant).joinToString(" · ")
 
-    /** The gzip ISIZE trailer: the unpacked size mod 2^32 (RFC 1952), an early check before the hash. */
+    /** For gzip inputs, ISIZE is the unpacked size mod 2^32 (RFC 1952); ZIP inputs have no gzip trailer. */
     val gzIsize: Long get() = rawBytes and 0xffff_ffffL
 
     fun gzMatches(bytes: Long, sha256: String): Boolean =
@@ -122,6 +136,7 @@ object Images {
 
     const val ID_FIND_N6 = "coloros17-findn6"
     const val ID_FIND_X9U_IN = "coloros17-findx9u-in"
+    const val ID_COLOROS17_PLK110 = "coloros17-plk110-xgsi"
     const val ID_PIXEL_YOGI = "pixel11fold-yogi"
     const val ID_PIXEL_KODIAK = "pixel11pro-kodiak"
     const val ID_HYPEROS_LHASA = "hyperos-lhasa"
@@ -192,6 +207,36 @@ object Images {
         cpuUsedByApps = listOf("sve2", "sme"),
         googleServices = true,
         family = SystemFamily.COLOROS,
+    )
+
+    /**
+     * The exact PLK110 ColorOS 17 GSI supplied for S24 Ultra validation. Its
+     * archive and inner ext4 image are separately pinned. The X9U-IN patch
+     * files are reused byte-for-byte as requested, but this system has not
+     * been boot-tested on a Galaxy S24 Ultra.
+     */
+    val COLOROS17_PLK110 = ImageRef(
+        id = ID_COLOROS17_PLK110,
+        label = "ColorOS 17, PLK110 GSI",
+        shortName = "PLK110 ColorOS GSI",
+        name = "ColorOS 17",
+        variant = "PLK110 GSI",
+        blurb = "Experimental ColorOS 17 GSI. It uses the pinned Find X9 Ultra IN patch files and has not been boot-tested on a Galaxy S24 Ultra.",
+        downloadUrl = null,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "XGSI_PLK110_17.0.0.100_arm64.zip",
+        gzBytes = 3_029_357_770L,
+        gzSha256 = "e3b19a42f4770e2788903c679e8e2a7116bc28e4b272c7597c5e6c3e2ac4fb73",
+        rawBytes = 6_644_899_840L,
+        rawSha256 = "43593ee631299f710fb091bc7f635627e91bd81fca7a8ab759ee3573cd621314",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = false,
+        family = SystemFamily.COLOROS,
+        inputFormat = ImageInputFormat.ZIP,
+        downloadUrlOverride = "https://pixeldrain.com/u/VqJvx5SD",
     )
 
     /**
@@ -468,7 +513,7 @@ object Images {
         family = SystemFamily.ORIGINOS,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID, OXYGEN16, ORIGINOS7)
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN, COLOROS17_PLK110, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID, OXYGEN16, ORIGINOS7)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 
@@ -765,7 +810,7 @@ object ImageIdentifier {
                 Finding(
                     ID, Level.OK, "${image.shortName} image already on this phone",
                     "system.raw has the size of the ${image.shortName} image (${Units.bytes(size)}). Prepare has root " +
-                        "check its SHA-256 (about a minute); if it differs, it is moved to the attic and you pick the .gz.",
+                        "check its SHA-256 (about a minute); if it differs, it is moved to the attic and you pick the pinned image file.",
                 ),
             )
         }

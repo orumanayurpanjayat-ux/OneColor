@@ -33,7 +33,7 @@ import dev.oneuiproject.oneui.R as OuiIcons
 /**
  * Load a custom GSI file (Advanced; Choose a system's last row): Pick the
  * file (the system file picker; no storage permission), Check the file
- * (SHA-256 of the whole .img or .img.gz, with progress), and reuse the system already on
+ * (SHA-256 of the whole .img or supported archive, with progress), and reuse the system already on
  * this phone when the stage holds a system.raw of one this phone takes. Both
  * say which system it is (ImageIdentifier) in plain words (Plain); a file
  * this phone does not take is a BLOCK naming the ones it does. The systems
@@ -72,13 +72,13 @@ class ImageActivity : ToolbarActivity() {
         (supportFragmentManager.findFragmentById(R.id.fragment_container) as? ImageFragment)?.redraw()
     }
 
-    /** ACTION_OPEN_DOCUMENT for .img or .img.gz (providers label disk images inconsistently). */
+    /** ACTION_OPEN_DOCUMENT for raw images and supported compressed image archives. */
     private class OpenSystemImage : ActivityResultContract<Unit, Uri?>() {
         override fun createIntent(context: Context, input: Unit): Intent =
             Intent(Intent.ACTION_OPEN_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE)
                 .setType("*/*")
-                .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/gzip", "application/x-gzip", "application/x-android-disk-image", "application/octet-stream", "*/*"))
+                .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/gzip", "application/x-gzip", "application/zip", "application/x-zip-compressed", "application/x-android-disk-image", "application/octet-stream", "*/*"))
 
         override fun parseResult(resultCode: Int, intent: Intent?): Uri? = if (resultCode == Activity.RESULT_OK) intent?.data else null
     }

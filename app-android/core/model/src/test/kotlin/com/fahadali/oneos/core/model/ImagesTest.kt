@@ -62,7 +62,7 @@ class ImagesTest {
         assertEquals(listOf(n6, xin, Images.NOTHING_METROID, Images.OXYGEN16), Images.ALL.filter { it.gmsHideable })
         assertTrue(pixel.copy(presentsGms = false).gmsHideable)
         assertEquals(
-            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.NOTHING_METROID, Images.OXYGEN16,
+            listOf(n6, xin, Images.COLOROS17_PLK110, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.NOTHING_METROID, Images.OXYGEN16,
                 Images.ORIGINOS7),
             Images.ALL,
         )
@@ -108,6 +108,17 @@ class ImagesTest {
         assertEquals("92c7cd8485dd6ef80d1f5c734ea13a8744510c15b77a18471eb11078df84ddb6", xin.rawSha256)
         assertEquals(null, xin.testedOn)
         assertEquals(xin, Images.byGzSize(7_071_596_999L))
+        val plk = Images.COLOROS17_PLK110
+        assertEquals("XGSI_PLK110_17.0.0.100_arm64.zip", plk.gzName)
+        assertEquals(ImageInputFormat.ZIP, plk.inputFormat)
+        assertEquals(3_029_357_770L, plk.gzBytes)
+        assertEquals("e3b19a42f4770e2788903c679e8e2a7116bc28e4b272c7597c5e6c3e2ac4fb73", plk.gzSha256)
+        assertEquals(6_644_899_840L, plk.rawBytes)
+        assertEquals("43593ee631299f710fb091bc7f635627e91bd81fca7a8ab759ee3573cd621314", plk.rawSha256)
+        assertEquals("https://pixeldrain.com/u/VqJvx5SD", plk.mirrorUrl)
+        assertNull(plk.testedOn)
+        assertEquals(plk, Images.byGzSize(plk.gzBytes))
+        assertEquals("ColorOS 17 · PLK110 GSI (Android 17)", plk.displayName)
         assertEquals(xin, Images.byRawSize(14_669_168_640L))
         assertEquals("Find X9 Ultra IN", Images.shortName(xin.id))
         // 0.4.51: the debloated Find X9 Ultra build is retired; a retired image's name stays known (old stages,
@@ -120,7 +131,7 @@ class ImagesTest {
         // Guest data stays with its own system (0.3.7): the ColorOS builds and the Pixel images.
         assertEquals(
             listOf(
-                SystemFamily.COLOROS, SystemFamily.COLOROS,
+                SystemFamily.COLOROS, SystemFamily.COLOROS, SystemFamily.COLOROS,
                 SystemFamily.PIXEL, SystemFamily.PIXEL, SystemFamily.PIXEL,
                 SystemFamily.INFINITYX, SystemFamily.HYPEROS, SystemFamily.NOTHING, SystemFamily.OXYGENOS, SystemFamily.ORIGINOS,
             ),
@@ -157,6 +168,13 @@ class ImagesTest {
 
         val n6OnFold = ImageIdentifier.identify(ImageFileCheck(null, n6.gzBytes, n6.gzSha256, n6.gzBytes), Profiles.F8U)
         assertEquals(ImageState.VERIFIED, n6OnFold.state)
+
+        val plk = Images.COLOROS17_PLK110
+        val plkOnS24 = ImageIdentifier.identify(ImageFileCheck(plk.gzName, plk.gzBytes, plk.gzSha256, plk.gzBytes), Profiles.S_ULTRA_8650)
+        assertEquals(ImageState.VERIFIED, plkOnS24.state)
+        assertEquals(plk, plkOnS24.image)
+        assertEquals(PackageSets.ID_COLOROS17_PLK110_SULTRA, Profiles.S_ULTRA_8650.choice(plk.id)?.packageSetId)
+        assertEquals(ImageState.WRONG_FOR_PHONE, ImageIdentifier.identify(ImageFileCheck(plk.gzName, plk.gzBytes), Profiles.S_ULTRA_8850).state)
     }
 
     @Test

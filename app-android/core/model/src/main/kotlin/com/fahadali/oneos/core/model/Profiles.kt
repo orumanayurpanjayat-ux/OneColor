@@ -165,6 +165,9 @@ object Profiles {
      */
     private val X9U_IN_CHOICE = ImageChoice(Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, tested = false)
 
+    /** PLK110 ColorOS 17 GSI; separately image-bound X9U-IN package pins, experimental on every host. */
+    private val PLK110_COLOROS_CHOICE = ImageChoice(Images.ID_COLOROS17_PLK110, PackageSets.ID_COLOROS17_PLK110_SULTRA, tested = false)
+
     /** The same image where a tester's session has reached the home screen (docs/compatibility.md). */
     private val X9U_IN_TESTED = X9U_IN_CHOICE.copy(tested = true)
 
@@ -504,7 +507,7 @@ object Profiles {
         codename = "e3q",
         socModel = "SM8650",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PLK110_COLOROS_CHOICE, PIXEL9_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
     )
 

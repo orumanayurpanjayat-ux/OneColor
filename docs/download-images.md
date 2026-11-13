@@ -1,8 +1,8 @@
 # Which system image to download
 
-Generated from the app's phone list (`ImageGuide`); `ImageGuideTest` keeps it in step. Download only the `.gz` of a system your phone is listed under, then pick it in OneOS. OneOS checks the file's SHA-256 before it uses it.
+Generated from the app's phone list (`ImageGuide`); `ImageGuideTest` keeps it in step. Download the exact file of a system your phone is listed under, then pick it in OneOS. OneOS checks the file's SHA-256 before it uses it.
 
-Downloads: each system's own link below (the SourceForge mirror, resumable); all of them are also in the Google Drive folder https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNEsUv
+Downloads: each system's own link below. OneOS-hosted images are also in the Google Drive folder https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNEsUv
 
 ## ColorOS 17, Find N6 global build
 
@@ -64,6 +64,14 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
   - Galaxy S23 Ultra (au) (SCG20, SM8550), not tested yet
   - Galaxy S23 (au) (SCG19, SM8550), not tested yet
+
+## ColorOS 17, PLK110 GSI
+
+- File: `XGSI_PLK110_17.0.0.100_arm64.zip` (3.03 GB)
+- SHA-256: `e3b19a42f4770e2788903c679e8e2a7116bc28e4b272c7597c5e6c3e2ac4fb73`
+- Download: https://pixeldrain.com/u/VqJvx5SD
+- Phones:
+  - Galaxy S24 Ultra (SM-S928, SM8650), not tested yet
 
 ## Pixel 11 Fold, yogi build
 

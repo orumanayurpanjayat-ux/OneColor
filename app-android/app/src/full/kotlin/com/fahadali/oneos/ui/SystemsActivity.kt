@@ -153,13 +153,13 @@ internal object SystemsNav {
         }
     }
 
-    /** ACTION_OPEN_DOCUMENT for .img or .img.gz, as the local GSI page. */
+    /** ACTION_OPEN_DOCUMENT for raw images and supported compressed image archives. */
     class OpenSystemImage : ActivityResultContract<Unit, Uri?>() {
         override fun createIntent(context: Context, input: Unit): Intent =
             Intent(Intent.ACTION_OPEN_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE)
                 .setType("*/*")
-                .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/gzip", "application/x-gzip", "application/x-android-disk-image", "application/octet-stream", "*/*"))
+                .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/gzip", "application/x-gzip", "application/zip", "application/x-zip-compressed", "application/x-android-disk-image", "application/octet-stream", "*/*"))
 
         override fun parseResult(resultCode: Int, intent: Intent?): Uri? = if (resultCode == Activity.RESULT_OK) intent?.data else null
     }
