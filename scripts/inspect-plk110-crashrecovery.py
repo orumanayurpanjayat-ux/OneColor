@@ -26,8 +26,9 @@ def dump(debugfs, image, source_path, destination):
         raise SystemExit(f"debugfs could not dump {source_path}: {result.stderr.strip()}")
 
 
-def method_block(lines, predicate, label):
-    starts = [i for i, line in enumerate(lines) if line.startswith(".method ") and predicate(line)]
+def method_block(lines, signature, label):
+    starts = [i for i, line in enumerate(lines)
+              if line.startswith(".method ") and line.split()[-1] == signature]
     if len(starts) != 1:
         raise SystemExit(f"expected one {label} method, found {len(starts)}")
     start = starts[0]
@@ -69,7 +70,7 @@ def inspect(image, debugfs, apktool):
         if len(rescue_files) != 1:
             raise SystemExit(f"expected one RescueParty.smali in crashrecovery APEX, found {len(rescue_files)}")
         rescue_lines = rescue_files[0].read_text(encoding="utf-8").splitlines()
-        disabled = method_block(rescue_lines, lambda line: "isDisabled()Z" in line, "RescueParty.isDisabled()Z")
+        disabled = method_block(rescue_lines, "isDisabled()Z", "RescueParty.isDisabled()Z")
 
         call_sites = []
         for source in decoded.rglob("*.smali"):

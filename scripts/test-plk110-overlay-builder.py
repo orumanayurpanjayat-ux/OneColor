@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Regression checks for the image-bound PLK110 overlay builder."""
 from pathlib import Path
+import importlib.util
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -9,6 +10,11 @@ WORKFLOW = (ROOT / ".github/workflows/plk110-overlays.yml").read_text()
 PATCH_NOTE = (ROOT / "docs/patch-notes/2026-11-13-plk110-coloros-gsi.md").read_text()
 PATCH_BUILT_JAR = (ROOT / "scripts/patch-built-jar.sh").read_text()
 CRASHRECOVERY_INSPECTOR = (ROOT / "scripts/inspect-plk110-crashrecovery.py").read_text()
+INSPECTOR_SPEC = importlib.util.spec_from_file_location(
+    "inspect_plk110_crashrecovery", ROOT / "scripts/inspect-plk110-crashrecovery.py"
+)
+INSPECTOR = importlib.util.module_from_spec(INSPECTOR_SPEC)
+INSPECTOR_SPEC.loader.exec_module(INSPECTOR)
 
 
 class Plk110OverlayBuilderTest(unittest.TestCase):
@@ -43,6 +49,18 @@ class Plk110OverlayBuilderTest(unittest.TestCase):
         self.assertIn("RescueParty.isDisabled()Z", CRASHRECOVERY_INSPECTOR)
         self.assertIn("RecoverySystem;->rebootPromptAndWipeUserData", CRASHRECOVERY_INSPECTOR)
         self.assertIn("PLK110 CRASHRECOVERY SAFETY INSPECTION", WORKFLOW)
+
+    def test_rescueparty_method_match_ignores_synthetic_name_containing_signature(self):
+        lines = [
+            ".method private static lambda$isDisabled()Z",
+            "    return-const/4 v0, 0x0",
+            ".end method",
+            ".method private static isDisabled()Z",
+            "    return-const/4 v0, 0x1",
+            ".end method",
+        ]
+        method = INSPECTOR.method_block(lines, "isDisabled()Z", "RescueParty.isDisabled()Z")
+        self.assertEqual(method[0], ".method private static isDisabled()Z")
 
     def test_patch_built_jar_runs_pinned_apktool_jar_through_java(self):
         self.assertIn('run_apktool() { java -jar "$APKTOOL" "$@"; }', PATCH_BUILT_JAR)
