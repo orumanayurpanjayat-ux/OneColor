@@ -1,38 +1,30 @@
-# OneOS package set coloros17-plk110-sultra: X9U-IN package payload pins adapted for PLK110 (PLK110-native SurfaceFlinger generated at session start; scripts/make-overlays.sh on the Find X9 Ultra IN image without debloat, CPH2841IN, 2026-11-03; samcam.tar from scripts/samsung-camera/build-cached.sh; 0.4.39 r53: services_patched.jar with patches/guest_ksu_manager_appid.py, telephony-common_patched.jar (patches/guest_smsc_international.py); samcam.tar with the density in scripts/samsung-camera/fix_bar_width.py (repatch-bar-width.sh), 2026-11-03; 0.4.40: samcam.tar with fix_bar_width.py for narrower screens too; 0.4.40 r55: framework_patched.jar with patches/guest_secims_gba.py (GBA support, sem*State by SIM slot); 0.4.41 r56: samcam.tar with a bar phone read as folded (repatch-compat-folded.sh); 0.4.47 r57: KeKeThemeSpace_patched.apk, the Theme Store without its brand check (the Find N6 global build's APK, byte for byte the same), 2026-11-04; 0.4.48 r58: the same Theme Store reporting OPPO and CPH2765, 2026-11-04; 0.4.55 r59: samcam.tar built from the Galaxy S26 Ultra's own Samsung Camera (S948BXXS4BZIG firmware; scripts/samsung-camera/build-cached.sh with SAMCAM_CACHE and SAMCAM_BAR=1: no fix_bar_width.py, no fix_rear_selfie.py), 2026-11-05; r60 (0.4.56, TEST CHANNEL ONLY): KeKeThemeSpace_patched.apk with patches/theme_store_netlog.py (every OkHttp request and reply in logcat, tag OneOSTheme), 2026-11-05; 0.4.57 r61 from r59 (the 0.4.48 Theme Store again): oplus-services_patched.jar with patches/oplus_resolution_tables.py, samcam.tar with fix_notification_icon.py; 0.4.58 r62: samcam.tar with the patched scamera_sdk_util.jar again, telephony-common + guest_sms_invalid_response.py, oplus-services + oplus_zen_light.py; 0.4.58 r62: telephony-common_patched.jar the same file as the Find N6 set's; 0.4.59 r63: samcam.tar keeps videos on Stop (fix_recorder_track_started.py); 0.4.59 r63: samcam.tar with the gallery fallback (fix_gallery_fallback.py); 0.4.59 r63: samcam.tar with the recording timer and secmedia fallback; 0.4.59 r64: samcam.tar with the camera timer, secmedia queries and gallery fallback; 0.4.59 r65: samcam.tar with the video rotation written after the stop; 0.4.61 r68: samcam.tar with the A phones' settings the S26 Ultra's camera does not know (fix_a_series_modes.py; 0.4.63: fix_a_series_crop.py, the A56's sensor crop), services_patched.jar with oplus_soundtrigger_no_hal.py; 0.4.63 r69: services_patched.jar with guest_pdb_init_survives.py; 0.4.66 r70: samcam.tar with fix_a_series_resolution.py), minus tethering_payload.img OneOSWallpapersFoldGrid.apk and surfaceflinger_patched; PLK110 SurfaceFlinger is patched from the exact image binary at session start.
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_x9u_in_r70 differs.
-2eddd38f878e61fa41d18151f5f90be5f18b5b3e161ac559ce191b9022e18c7b  KeKeThemeSpace_patched.apk
+# PLK110 ColorOS 17 package set built from the pinned PLK110 system.img.
+# The guest helper and PermissionController compatibility APK are shared OneOS files. SurfaceFlinger is built at session start.
+# PLK110 has not been tested on the S24 Ultra device; this experimental set remains unverified.
+c80ac9894a170c72f20a30f7adf48710ef06b024678973f9707cc797ae9302a1  services_patched.jar
+4df974bd05011201282d9e75e91af2d2e135cb451230bd1edc9c886189094601  oplus-services_patched.jar
+7b484680f3b982060e19276143c3c2d0fa186c8325dc12e831107b6265d0c142  vold_patched
+1f6ce63cae772c06421069e680b1107f8cf2eef8f1435c060542b8043276fb0d  service.incremental_patched.so
 bd03c424877de86c2864313ba3371d3725b3d5531559373aadc84d592f9cae0c  OneOSGuest.apk
 4c3978e8d72c82013726d8e1ea4914c04ebef4fa099339dafd9b53543f402df3  PermissionController_patched.apk
-63a54a1d705e387966c1174a6707fe02b85035b311fa1fbda1c7fcf0991a202a  adservices_payload.img
-88ce090179da9e71ff718a72b7e027bdf0813ddbcde5b17e2b05d03fc20f6fcb  appsearch_payload.img
-391e25c00f71217669879482c4055ae27855e8b5be8df9f4dfcd018fa02fc148  art_payload.img
-eca67bef101d9f300f36f824c9af394c316c0f27d3d7c72d9e2e22d3ea7e0c7c  cellbroadcast_payload.img
-f8fc69250f59bd83b0d11399c17a4bfa4e63030d7297b2108eb84d9bc7dc94fd  configinfrastructure_payload.img
-2cda6104fa8266d2ee26ca9512532dfed6fef9c8c2a319663f890fd19986c0a0  crashrecovery_payload.img
-dddccf843beb0fb4552d3f0afe1c4f8bb8d7a1c4269f5a787f16ad1b08f8beaf  extservices_payload.img
-5cb16a378d41301c2d41d4653f7dc63c54b732516353f331f0316e2c237f6246  framework_patched.jar
-e9aec6ba42e7cbc57152764bae54552af4807b4938692775f676f37473c181b5  guards.txt
-8f2a37629ed009b011d33f017714ac3d33caa5ffba838c2ced3a2c4f6a612efc  healthfitness_payload.img
-1750220fbfa2af1611a8ed7b1b3526074953b3a863f0e066a3fede2a4ea7d756  i18n_payload.img
-ce3e16ea49bf1610c80af14233165e0de54090c57125cc62997c90743c5ff33e  ims-ext-common_patched.jar
-fae755c0225bb9cdd3553fc26a11092fd035984c8432adbf22c3c8d70275fa30  libcamera_client_patched.so
-ceaa5bbb31041942437b2b45bdbaf3589c6d39670ea9164a8817b979fa27a82f  mediaprovider_payload.img
-d3a960a714fb2a07572b85cdcd97d2585e22a9d348da60a9da6befe20284d021  ondevicepersonalization_payload.img
-d02092bc404c27b6243afa1cb95836544b05cc8c46623890de41df251283665e  oplus-services_patched.jar
-2302316c371ada44b5e4126b641ae3212f38f2a643ba040f800179ddf8893993  oplus-telephony-common_patched.jar
-4faf5c11a7f9ee024805dafd520b158f6db470d39da46f8f02f5edca170b5b86  oplus_odm_ai.tar
-a74644f7a3817f52fdf59e248b88fdac19fca7a87a74a2e2ed91063ad213404f  permission_payload.img
-df141e3656cbbe576a98975cdd17327f7e4a7dc671a1725c504886ebf5009a05  rkpd_payload.img
-f45b10cbc8deb9d2cf32a33df4e778904334cc8cdb0cb628043153029ddf9379  runtime_payload.img
-ff76a847b4bce02e9e0b8f1bbe6efb3e37ede930717adf9cd2730ea5fb7186e4  samcam.tar
-448f4909cc27a33be33ea85d3d950d38d285c2964c930c043eb3827c89ff267f  sdkext_payload.img
-e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.incremental_patched.so
-dec47e57d14adae73a6ff0beb3d3e688fa414833e843fa018fa58e5cdb1dd81a  services_patched.jar
-617e60543efd34a724106991a3b9418e4a57dbdd97f5fc0b4bc68663e167517c  telephony-common_patched.jar
-2d9ee6309c7581f5d55a0ec9e89686413fe0c9c3c4971cbcda81ddc0e013d845  vold_patched
-93f7758cee7ad56d20c4ee80cd270837d1ecb187efacfbc473f3d27c3184f2f6  wifi_payload.img
-d1caea92b132bf2a56a59e44fcb2ed385d4fe4ab8b173845ff7cad1ed92c460a  SystemUI_wave.dex
-95cd0d4811c1a1c12d5ec3cf60995e2db3947a8d3303788baa3cdf2b20ce039a  OneOSWaveRepack.dex
-
-# Experimental PLK110 target only: these bytes remain built from Find X9 Ultra IN and have not been tested on the PLK110 image.
-# The second set ID keeps root's image-to-patch binding exact; every payload SHA-256 is intentionally identical to x9u-in-sultra.
+6a2e587e596cb5e6922521757c53d2e14fe85d8026aff4470808d3cd03e1c98b  ims-ext-common_patched.jar
+c9528732f5d1af4c1360dfca7d04f60a8d5b3f381fb462f29aac6b1bc588c575  oplus-telephony-common_patched.jar
+419a705f35e4c828becba1bb96176f44b2ca99823c2defed0403bb57b57c08e5  guards.txt
+5f1d4d06c48ffbf815c252e182a04af07a1be1a4c44d5524965d677d11829561  art_payload.img
+6003a5560fc06e55fca9310154a5c4efa6c54ebd1647c0d8004756f3ece44df1  i18n_payload.img
+58b591edd20a366d1f3130baee726aa333b2fdb6d7584fe870907f81e21c2091  runtime_payload.img
+99923437d9280eac9cc19c2335dcef4c752e15317e62674d95e486931c429294  sdkext_payload.img
+fcf153821e9c3c5accf884287136d10edf54df9be737abc75d7825ef7b1e48ef  crashrecovery_payload.img
+a627f1bbb11201d35547241fc238bf0caad1926f2896ca5937f809e8b655c6ae  extservices_payload.img
+56d2d3e3aef114d9e9f9e5b479dd583b2f036f2f28d96f582435cbfad04fae86  permission_payload.img
+1a0b44bfd0a019f128ab30b9c1e4f2269cb7b511c27a958342a6e8ee0b2a0b44  wifi_payload.img
+f10ad051c6114429f897fc243cf92f89f51f5d78756da2e8e98830caa9f3e7c9  appsearch_payload.img
+481a3cee88b52b91a136922e0f6536bc8e6e70f0ffc0798db00243560ff3013d  mediaprovider_payload.img
+12e66bebaa7814152dd7e93c9091d401cb5002129e098701275beea5146a3229  adservices_payload.img
+c9c44a82ee8558d8715269a0ca0e5fa86bf557e52409658baebf5e04b3b6bdce  rkpd_payload.img
+9b0bf011ee64fe3cfdf993ea150798c93510d6b8884632e2744b443a3c6fc7a7  healthfitness_payload.img
+5d0c5ffaf11c76b82d468b1e0c565f923548378b8b7721e14eb83e0b0d52b33b  ondevicepersonalization_payload.img
+fb2fe6b59a357cb7daf10b88b3f049d5b084753e7f079d63998d37791020527e  configinfrastructure_payload.img
+ddffc9b6868b6bd5a03dbc68ff56a02cfc1f20301e40890b1b6beab28ac0985e  framework_patched.jar
+d0ff710d0e5e69dfbda151b561b3340a1876f01a396e59c235529cfab5c6057e  telephony-common_patched.jar
+3d7c680876c486760cb61281710e53cdaab63ac5ac5fb55467fa380a96873da6  libcamera_client_patched.so

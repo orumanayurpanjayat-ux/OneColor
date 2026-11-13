@@ -59,8 +59,10 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // Find X9 Ultra IN image (0.3.3-0.3.6, again from 0.4.11), the bar phones:
     // the CN set's files (shared by hash) and its cell broadcast module.
     "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r70") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
-    // PLK110 GSI: X9U-IN guest patches under a separate image-bound set ID; SurfaceFlinger is patched from PLK110's own binary at session start.
-    "coloros17-plk110-sultra" to (File(repoRoot, "out/overlays_x9u_in_r70") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
+    // Experimental PLK110 GSI: every listed patch is rebuilt from its pinned system.img.
+    "coloros17-plk110-sultra" to (File(repoRoot, "out/overlays_plk110") to listOf(
+        "tethering_payload.img", "surfaceflinger_patched", "OneOSWallpapersFoldGrid.apk", "OneOSTabletQs.apk",
+        "OneOSFoldCutout.apk", "oneos-apex-requires.txt", "plk110-overlays.sha256")),
     // Pixel 11 Fold image (0.3.7), Z Fold (F8U): everything a Pixel session uses,
     // OneOSGuest.apk included, and the fold hinge (scripts/make-fold8-pixel.py --variant f8u).
     "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r17") to listOf("tethering_payload.img")),
@@ -97,9 +99,8 @@ val seriesSets: Map<String, Set<String>> = File(packagesDir, "series.txt").readL
 // downloads the files its phone's set needs, by hash. -Poneos.packSets=true packs them as
 // before (a local test build, no download).
 val packSetsInApk: Boolean = (findProperty("oneos.packSets") as String?)?.trim() == "true"
-// 0.4.53: each file's sources, comma-separated: "gh:<tag>" (an asset of that release of fahadalijaved/OneOS-files,
-// named by its sha256) and Drive ids, copies in OneOS/files and OneOS/files2.. (Drive refuses a file once "too
-// many users" downloaded it that day; each copy has its own limit).
+// Each file's sources, comma-separated: "gh:<tag>" (an asset of the standard OneOS-files release),
+// "gh:<owner>/<repo>:<tag>" for an image-specific release, SourceForge, and Drive ids.
 val setRemoteIds: Map<String, String> = File(packagesDir, "remote.txt").takeIf { it.isFile }?.readLines()
     ?.map { it.trim() }?.filter { it.isNotEmpty() && !it.startsWith("#") }
     ?.associate { l ->
@@ -304,8 +305,10 @@ abstract class OneOsFilesTask : DefaultTask() {
                 val f = File(dir, n)
                 val publishedBytes = publishedSizes[sum]
                 // Remote files are pinned by the set manifest; no OEM build folder is needed
-                // (a contributor's checkout). Where the folder exists, it is checked as before.
-                if (!pack && !dir.isDirectory && n !in omitted && ids[sum] != null && publishedBytes != null) {
+                // (a contributor's checkout). An incomplete local overlay folder can still use
+                // the pinned remote copy of a shared file, but every local file that is present
+                // is verified against its manifest hash below.
+                if (!pack && !f.isFile && n !in omitted && ids[sum] != null && publishedBytes != null) {
                     sizes[sum] = publishedBytes
                     remote[sum] = ids.getValue(sum)
                     continue

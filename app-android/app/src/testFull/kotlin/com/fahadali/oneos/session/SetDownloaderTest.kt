@@ -5,6 +5,14 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class SetDownloaderTest {
+    @Test fun plk110AssetsCanUseTheImageSpecificOneColorRelease() {
+        val hash = "a".repeat(64)
+        assertEquals(
+            "https://github.com/orumanayurpanjayat-ux/OneColor/releases/download/plk110-coloros17-r1/$hash",
+            SetDownloader.url("gh:orumanayurpanjayat-ux/OneColor:plk110-coloros17-r1", hash),
+        )
+    }
+
     @Test fun permissionControllerSourceIsPinnedToTheCheckedApk() {
         assertEquals(
             "https://raw.githubusercontent.com/WeWaffles/OneLineage/10cd368dc4c67f3ec7e9c885e0474233cde8edcd/assets/PermissionController_patched.apk",

@@ -306,12 +306,27 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    /** X9U-IN package pins adapted to the PLK110 image; its SurfaceFlinger is patched from its own binary at session start. */
-    val COLOROS17_PLK110_SULTRA = X9U_IN_SULTRA.copy(
+    /** PLK110 GSI overlays rebuilt from its pinned system image; its SurfaceFlinger is produced at session start. */
+    val COLOROS17_PLK110_SULTRA = PackageSet(
         id = ID_COLOROS17_PLK110_SULTRA,
         imageId = Images.ID_COLOROS17_PLK110,
-        files = X9U_IN_SULTRA.files.filterNot { it.name == "surfaceflinger_patched" },
-        approxBytes = X9U_IN_SULTRA.approxBytes - 7_343_928L,
+        sourceDir = "out/overlays_plk110",
+        files = COMMON.filterNot { it.name == "surfaceflinger_patched" } + listOf(
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
+        ),
+        omitted = listOf(
+            TETHERING,
+            "surfaceflinger_patched",
+            WALLPAPER_GRID_RRO,
+            "OneOSTabletQs.apk",
+            "OneOSFoldCutout.apk",
+            "oneos-apex-requires.txt",
+            "plk110-overlays.sha256",
+        ),
+        approxBytes = 479_155_020L, // Sum of the 27 published PLK110 package files.
+        hasReturnApp = true,
     )
 
     /** The Pixel sets' files (root's SET_PIXEL): the same for every Pixel image. */

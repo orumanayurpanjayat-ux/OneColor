@@ -32,16 +32,28 @@ class PackageSetsTest {
         assertEquals(setOf("GlobalVerifiedAddons.tar"), customHashes.keys - sharedHashes.keys)
     }
 
-    @Test fun plk110SetUsesItsOwnSurfaceFlingerBinary() {
-        assertEquals(xin.files.filterNot { it.name == "surfaceflinger_patched" }, plk.files)
+    @Test fun plk110SetUsesOnlyItsImageBuiltColorOsPatches() {
+        assertEquals("out/overlays_plk110", plk.sourceDir)
         assertEquals(
-            ShaList.parse(shas(xin)).entries - "surfaceflinger_patched",
-            ShaList.parse(shas(plk)).entries,
+            xin.files.filterNot {
+                it.name in setOf(
+                    "surfaceflinger_patched", PackageSets.CELLBROADCAST, "samcam.tar", PackageSets.THEME_STORE_APK,
+                    PackageSets.ODM_AI, "SystemUI_wave.dex", "OneOSWaveRepack.dex",
+                )
+            },
+            plk.files,
         )
-        assertEquals(guards(xin), guards(plk))
-        assertTrue(xin.imageId != plk.imageId)
+        assertEquals(Images.ID_COLOROS17_PLK110, plk.imageId)
         assertFalse(plk.files.any { it.name == "surfaceflinger_patched" })
-        assertTrue(shas(plk).contains("not been tested on the PLK110 image"))
+        assertFalse(plk.files.any { it.name in x9uWavePayloads })
+        for (name in listOf(PackageSets.CELLBROADCAST, "samcam.tar", PackageSets.THEME_STORE_APK, PackageSets.ODM_AI, "SystemUI_wave.dex", "OneOSWaveRepack.dex")) {
+            assertFalse("PLK110 must not reuse $name", name in plk.names)
+        }
+        val plkHashes = ShaList.parse(shas(plk)).entries
+        val x9Hashes = ShaList.parse(shas(xin)).entries
+        assertTrue("PLK110 services.jar must be rebuilt from its image", plkHashes["services_patched.jar"] != x9Hashes["services_patched.jar"])
+        assertTrue("PLK110 crashrecovery payload must come from its own APEX", plkHashes["crashrecovery_payload.img"] != x9Hashes["crashrecovery_payload.img"])
+        assertTrue(shas(plk).contains("PLK110 has not been tested on the S24 Ultra device"))
     }
 
     /** The 15 APEX payloads every set carries. */
@@ -60,10 +72,11 @@ class PackageSetsTest {
         assertEquals("out/overlays_n6g_r15", n6.sourceDir)
         assertEquals("out/overlays_x9u_in_r70", xin.sourceDir)
         assertEquals(Images.ID_FIND_X9U_IN, xin.imageId)
-        assertEquals("out/overlays_x9u_in_r70", plk.sourceDir)
+        assertEquals("out/overlays_plk110", plk.sourceDir)
         assertEquals(Images.ID_COLOROS17_PLK110, plk.imageId)
-        assertEquals(xin.files.filterNot { it.name == "surfaceflinger_patched" }, plk.files)
-        assertEquals(xin.approxBytes - 7_343_928L, plk.approxBytes)
+        assertEquals(27, plk.files.size)
+        assertEquals(479_155_020L, plk.approxBytes)
+        assertFalse(plk.files.any { it.name == "surfaceflinger_patched" })
         assertEquals("out/overlays_pixel_f8u_r17", pixel.sourceDir)
         assertEquals(
             listOf(PackageSets.N6_GLOBAL_F8, n6, xin, plk, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
