@@ -444,6 +444,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-plk110-xgsi",
+          "label": "ColorOS 17, PLK110 GSI",
+          "set": "coloros17-plk110-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel9proxl-komodo",
           "label": "Pixel 9 Pro XL, komodo build",
           "set": "pixel9-sultra",

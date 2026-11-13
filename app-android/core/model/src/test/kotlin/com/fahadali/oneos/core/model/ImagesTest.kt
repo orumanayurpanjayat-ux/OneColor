@@ -299,7 +299,7 @@ class ImagesTest {
             Profiles.S_PLUS_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin),
             Profiles.FOLD8 to listOf(n6, pixel, ifx, hyper, nothing, origin),
             Profiles.S_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing, origin),
-            Profiles.S_ULTRA_8650 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin), // 0.4.82
+            Profiles.S_ULTRA_8650 to listOf(xin, Images.COLOROS17_PLK110, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin), // PLK110 ColorOS GSI; 0.4.82
             Profiles.S_8550 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, Images.OXYGEN16, origin), // 0.4.82; 0.4.91 OxygenOS 16
             Profiles.S_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin), // 0.4.83
             Profiles.S_PLUS_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin), // 0.4.83

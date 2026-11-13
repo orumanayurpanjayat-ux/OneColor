@@ -555,7 +555,7 @@ class ProfilesTest {
         assertEquals(listOf(Profiles.ID_NOTE_EXYNOS, Profiles.ID_NOTE_OLDER_VENDOR), Profiles.S_9945.notes.map { it.id })
         // 0.4.83: the Exynos S24 and S24+ take the S24 Ultra's systems (Infinity-X untested on them), with their own notes;
         // the S24+ (Exynos) from the owner's SM-S926B probe. A Snapdragon S24+ (e2q) has sent no probe: no profile.
-        assertEquals(Profiles.S_ULTRA_8650.choices.map { it.copy(tested = false) }, Profiles.S_9945.choices)
+        assertEquals(Profiles.S_ULTRA_8650.choices.filterNot { it.imageId == Images.ID_COLOROS17_PLK110 }.map { it.copy(tested = false) }, Profiles.S_9945.choices)
         assertEquals(Profiles.S_8650.choices, Profiles.S_9945.choices)
         assertEquals(Profiles.S_PLUS_9945, profile("SM-S926B", "e2s", "s5e9945"))
         assertEquals(listOf("s-plus-9945", "Galaxy S24+ (Exynos)", FormFactor.BAR), listOf(Profiles.S_PLUS_9945.id, Profiles.S_PLUS_9945.label, Profiles.S_PLUS_9945.form))
