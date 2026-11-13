@@ -88,7 +88,8 @@ jobs:
               'platforms;android-37.0' \
               'build-tools;36.0.0' \
               'build-tools;37.0.0' \
-              'platform-tools'; then
+              'platform-tools' \
+              'ndk;27.2.12479018'; then
               installed=true
               break
             fi
@@ -137,7 +138,7 @@ jobs:
           }
 
           echo 'Installed Android packages:'
-          sdkmanager --list_installed | grep -E 'platforms;android-37|build-tools;36.0.0|build-tools;37.0.0|platform-tools' || true
+          sdkmanager --list_installed | grep -E 'platforms;android-37|build-tools;36.0.0|build-tools;37.0.0|platform-tools|ndk;27.2.12479018' || true
           ls -ld "${SDK_ROOT}/platforms/android-37" "${SDK_ROOT}/platforms/android-37.0"
 
       - name: Verify repository build inputs
@@ -175,6 +176,26 @@ jobs:
 
       - name: Test PLK110 secondary log fixes
         run: python3 scripts/test-secondary-log-fixes.py
+
+      - name: Build guest zygote launcher from source
+        run: |
+          set -Eeuo pipefail
+
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/.android/sdk}}"
+          NDK_ROOT="${SDK_ROOT}/ndk/27.2.12479018"
+          CC="${NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
+          STRIP="${NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+
+          [[ -x "${CC}" && -x "${STRIP}" ]] || {
+            echo 'Pinned Android NDK compiler or strip tool is missing.' >&2
+            exit 1
+          }
+
+          "${CC}" --target=aarch64-linux-android29 -static -O2 -Wall -Wextra \
+            -o switcher/assets/zygote_exec switcher/native/zygote_launcher.c
+          "${STRIP}" switcher/assets/zygote_exec
+          file switcher/assets/zygote_exec
+          ls -lh switcher/assets/zygote_exec
 
       - name: Check guest shell syntax
         run: bash -n app-android/app/src/full/assets/root/oneos_root.sh switcher/assets/guest_prepare.sh switcher/assets/guest_start.sh switcher/assets/oneos_switch.sh

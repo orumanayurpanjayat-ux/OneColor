@@ -15,6 +15,7 @@ PACKAGE_REMOTE = (ROOT / "app-android/packages/remote.txt").read_text()
 PACKAGE_SIZES = (ROOT / "app-android/packages/sizes.txt").read_text()
 APP_BUILD = (ROOT / "app-android/app/build.gradle.kts").read_text()
 SWITCH = (ROOT / "switcher/assets/oneos_switch.sh").read_text()
+ZYGOTE_LAUNCHER = (ROOT / "switcher/native/zygote_launcher.c").read_text()
 
 
 class HostAppSplitTest(unittest.TestCase):
@@ -97,6 +98,20 @@ class ZygoteFailureCaptureTest(unittest.TestCase):
         self.assertIn("timeout 10 logcat -b all -d -t 3000", body)
         self.assertIn("timeout 5 dmesg -T", body)
         self.assertLess(body.index("zygote_failure.log"), body.index("exec /system/bin/sh $STAGE/return_to_oneui.sh"))
+
+    def test_zygote_output_is_saved_and_collected_without_following_links(self):
+        self.assertIn('#define ZYGOTE_LOG_PATH "/data/zygote_exec.log"', ZYGOTE_LAUNCHER)
+        self.assertIn("O_APPEND | O_CLOEXEC | O_NOFOLLOW", ZYGOTE_LAUNCHER)
+        self.assertIn("fstat(log_fd, &st)", ZYGOTE_LAUNCHER)
+        self.assertIn("S_ISREG(st.st_mode)", ZYGOTE_LAUNCHER)
+        self.assertIn("dup3(log_fd, STDOUT_FILENO, 0)", ZYGOTE_LAUNCHER)
+        self.assertIn("dup3(log_fd, STDERR_FILENO, 0)", ZYGOTE_LAUNCHER)
+        self.assertIn('execve("/system/bin/app_process64", argv, envp)', ZYGOTE_LAUNCHER)
+        self.assertIn('perror("zygote_launcher: execve /system/bin/app_process64")', ZYGOTE_LAUNCHER)
+        self.assertIn('ZYGOTE_LOG=/data/zygote_exec.log', START)
+        launch = START.split('echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."', 1)[1]
+        self.assertLess(launch.index('ZYGOTE_LOG=/data/zygote_exec.log'), launch.index('if [ -f /data/oneos_root/enabled ]'))
+        self.assertIn('for f in "$S"/data/*.log', (ROOT / "app-android/app/src/full/assets/logs/collect.list").read_text())
 
 
 if __name__ == "__main__":

@@ -2664,6 +2664,17 @@ if [ -f "$WAVE_APK" ]; then
 fi
 
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
+# Keep app_process64's stdout/stderr for the next session report. The native
+# launcher opens this file with O_NOFOLLOW and mode 0600; it falls back to the
+# already-captured takeover.log if this guest-data file is unavailable.
+ZYGOTE_LOG=/data/zygote_exec.log
+if [ -L "$ZYGOTE_LOG" ]; then $BB rm -f "$ZYGOTE_LOG" 2>/dev/null; fi
+if [ -e "$ZYGOTE_LOG" ] && [ ! -f "$ZYGOTE_LOG" ]; then
+    echo "[Pivoted Root] Zygote startup log path is not a regular file; launcher will keep takeover.log stderr"
+else
+    (umask 077; : > "$ZYGOTE_LOG") 2>/dev/null && chmod 600 "$ZYGOTE_LOG" 2>/dev/null || \
+        echo "[Pivoted Root] Could not prepare zygote startup log; launcher will keep takeover.log stderr"
+fi
 if [ -f /data/oneos_root/enabled ]; then
     /system/bin/sh /data/oneos_runtime.sh pre || exit 3
     /system/bin/sh /data/oneos_runtime.sh late > /data/adb/oneos/run/late.log 2>&1 &
