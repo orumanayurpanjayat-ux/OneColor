@@ -14,6 +14,7 @@ ROOT_SCRIPT = (ROOT / "app-android/app/src/full/assets/root/oneos_root.sh").read
 PACKAGE_REMOTE = (ROOT / "app-android/packages/remote.txt").read_text()
 PACKAGE_SIZES = (ROOT / "app-android/packages/sizes.txt").read_text()
 APP_BUILD = (ROOT / "app-android/app/build.gradle.kts").read_text()
+SWITCH = (ROOT / "switcher/assets/oneos_switch.sh").read_text()
 
 
 class HostAppSplitTest(unittest.TestCase):
@@ -86,6 +87,16 @@ class PermissionPatchPackagingTest(unittest.TestCase):
         self.assertIn(digest, (ROOT / "app-android/app/src/full/kotlin/com/fahadali/oneos/session/SetDownloader.kt").read_text())
         self.assertIn(f'permissionPatchSource = "{source}"', APP_BUILD)
         self.assertIn("Regex.escape(permissionPatchSource)", APP_BUILD)
+
+
+class ZygoteFailureCaptureTest(unittest.TestCase):
+    def test_missing_zygote_snapshot_is_saved_before_safe_return(self):
+        marker = r"if [ \$dead -ge 30 ]; then"
+        body = SWITCH.split(marker, 1)[1].split("\n                fi", 1)[0]
+        self.assertIn("zygote_failure.log", body)
+        self.assertIn("timeout 10 logcat -b all -d -t 3000", body)
+        self.assertIn("timeout 5 dmesg -T", body)
+        self.assertLess(body.index("zygote_failure.log"), body.index("exec /system/bin/sh $STAGE/return_to_oneui.sh"))
 
 
 if __name__ == "__main__":

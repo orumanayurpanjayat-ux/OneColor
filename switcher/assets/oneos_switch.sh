@@ -3989,6 +3989,13 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                 dead=\$((dead + 10))
                 if [ \$dead -ge 30 ]; then
                     echo \"\$(date) guest zygote/system_server gone for \${dead}s after \${t}s, returning to One UI\"
+                    {
+                        echo \"\$(date) zygote failure snapshot: guest zygote/system_server absent after \${t}s\"
+                        echo '--- guest startup crash records (last 3000 log entries)'
+                        timeout 10 logcat -b all -d -t 3000 -v threadtime 2>/dev/null | grep -a -i -E 'zygote|system_server|app_process64|AndroidRuntime|FATAL EXCEPTION|Fatal signal|Abort message|linker|NoClassDefFoundError|NoSuchMethodError|BOOT FAILURE|art::|libc|dex2oat|odrefresh|apexd' | tail -n 400
+                        echo '--- kernel fatal and process-kill records'
+                        timeout 5 dmesg -T 2>/dev/null | grep -a -i -E 'zygote|system_server|app_process|killed process|oom|segfault|avc: denied' | tail -n 100
+                    } >> $STAGE/data/zygote_failure.log 2>&1
                     exec /system/bin/sh $STAGE/return_to_oneui.sh
                 fi
             fi
