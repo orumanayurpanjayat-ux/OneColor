@@ -118,7 +118,6 @@ grep -q 'requested gpu=646' "$STAGE/performance_handover.log"
     def test_maximum_profile_leaves_hot_session_to_kernel_thermal_limits(self):
         self.run_case('''
 ONEOS_HEAT_CAP_PROFILE=maximum
-perf_snapshot host
 perf_guest() { echo 123; }
 timeout() {
  if [ "$2" = settings ]; then echo 0; elif [ ! -f "$PSTATE/hot-read" ]; then
@@ -132,6 +131,7 @@ timeout() {
   echo 'Current cooling devices'
  fi
 }
+perf_snapshot host
 sleep() {
  if [ -f "$PSTATE/slept" ]; then touch "$PSTATE/stop"; else touch "$PSTATE/slept"; fi
 }
