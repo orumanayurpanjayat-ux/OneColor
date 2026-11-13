@@ -14,6 +14,7 @@ class PerformanceHandover(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             base = Path(t)
             files = {
+                'sys/fs/cgroup/cgroup.procs': '',
                 'sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit': '1267200',
                 'sys/kernel/gpu/gpu_max_clock': '160',
                 'sys/kernel/gpu/gpu_tmu': '35000',
