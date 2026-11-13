@@ -63,7 +63,7 @@ class StringsNeutralTest {
         for (v in items) assertEquals(v, null, names.find(v)?.value)
         // The screens' titles: what Advanced's rows and the team's rows say.
         val titles = mapOf(
-            "prepare_title" to "Repair or start fresh", "image_title" to "Use a downloaded file", "space_title" to "Free up space",
+            "prepare_title" to "Repair or start fresh", "image_title" to "Load custom GSI", "space_title" to "Free up space",
             "team_title" to "For the OneOS team", "switch_title" to "All checks and Test run", "report_title" to "Phone details",
             "prepare_title_team" to "Setup details", "image_title_team" to "File details and checks",
             // Not "Run tests" next to "Test run" on the OneOS team's screen.

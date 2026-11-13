@@ -174,7 +174,7 @@ class ImageFragment : CardsFragment() {
                     Cards.row(
                         file, OuiIcons.drawable.ic_oui_refresh,
                         if (total != null) getString(R.string.image_checking, (job.read * 100 / total.coerceAtLeast(1)).toInt())
-                        else getString(R.string.image_checking_unknown, Units.bytes(job.read)),
+                        else getString(R.string.image_checking_unknown),
                         if (total != null) getString(R.string.image_checking_bytes, Units.bytes(job.read), Units.bytes(total))
                         else getString(R.string.image_checking_unknown_bytes, Units.bytes(job.read)),
                     ),
