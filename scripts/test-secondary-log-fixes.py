@@ -2,6 +2,7 @@
 """Regression checks for secondary failures found in the PLK110 session logs."""
 from pathlib import Path
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -91,9 +92,67 @@ class PermissionPatchPackagingTest(unittest.TestCase):
 
 
 class ZygoteFailureCaptureTest(unittest.TestCase):
+    def _startup_decision(self):
+        body = SWITCH.split("            startup_stuck=0", 1)[1].split(
+            "            if [ \\$startup_stuck -eq 1 ] || [ \\$dead -ge 30 ]; then", 1
+        )[0]
+        return ("startup_stuck=0" + body).replace(r'\"', '"').replace(r"\$", "$")
+
+    def test_live_app_process_gets_bounded_startup_grace(self):
+        body = SWITCH.split("            startup_stuck=0", 1)[1].split("            # Nothing restarts", 1)[0]
+        self.assertIn("app_process_wait=0", SWITCH)
+        self.assertIn('case \\"\\$zygote_exe\\" in', body)
+        self.assertIn('*/app_process64|*/app_process32)', body)
+        self.assertIn(r"app_process_wait=\$((app_process_wait + 10))", body)
+        self.assertIn(r"[ \$app_process_wait -ge 120 ] && startup_stuck=1", body)
+        self.assertIn("dead=0; app_process_wait=0", body)
+        self.assertIn("app_process64 stayed alive without zygote registration", body)
+        self.assertIn("live app_process startup state", body)
+        self.assertIn("/proc/$TAKEOVER_PID/wchan", body)
+
+    def test_live_app_process_is_not_returned_early_and_timeout_is_bounded(self):
+        if not shutil.which("bash"):
+            self.skipTest("bash is required to exercise the Android shell decision")
+        decision = self._startup_decision().replace("$STAGE", "/tmp/stage").replace("$TAKEOVER_PID", "777")
+        prefix = r'''\
+pidof() { [ "$MOCK_ZYGOTE" = 1 ] && [ "$1" = zygote64 ]; }
+readlink() {
+    case "$1" in
+        /proc/777/exe) printf '%s\n' "$MOCK_EXE" ;;
+        /proc/777/ns/mnt) printf '%s\n' 'mnt:[42]' ;;
+        *) command readlink "$@" ;;
+    esac
+}
+cat() {
+    case "$1" in
+        /tmp/stage/guest_mntns) printf '%s\n' 'mnt:[42]' ;;
+        *) command cat "$@" ;;
+    esac
+}
+dead=0; app_process_wait=0
+'''
+        live = prefix + (decision + "\n") * 12 + 'printf "%s:%s:%s\\n" "$dead" "$app_process_wait" "$startup_stuck"\n'
+        result = subprocess.run(["bash", "-c", live], env=dict(os.environ, MOCK_EXE="/system/bin/app_process64"), capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("0:120:1", result.stdout.strip())
+
+        exited = prefix + (decision + "\n") * 3 + 'printf "%s:%s:%s\\n" "$dead" "$app_process_wait" "$startup_stuck"\n'
+        result = subprocess.run(["bash", "-c", exited], env=dict(os.environ, MOCK_EXE=""), capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("30:0:0", result.stdout.strip())
+
+        registered = prefix + decision + '\nprintf "%s:%s:%s\\n" "$dead" "$app_process_wait" "$startup_stuck"\n'
+        result = subprocess.run(
+            ["bash", "-c", registered],
+            env=dict(os.environ, MOCK_EXE="/system/bin/app_process64", MOCK_ZYGOTE="1"),
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("0:0:0", result.stdout.strip())
+
     def test_missing_zygote_snapshot_is_saved_before_safe_return(self):
-        marker = r"if [ \$dead -ge 30 ]; then"
-        body = SWITCH.split(marker, 1)[1].split("\n                fi", 1)[0]
+        body = SWITCH.split("            startup_stuck=0", 1)[1].split("            # Nothing restarts", 1)[0]
         self.assertIn("zygote_failure.log", body)
         self.assertIn("timeout 10 logcat -b all -d -t 3000", body)
         self.assertIn("timeout 5 dmesg -T", body)
