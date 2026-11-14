@@ -301,5 +301,90 @@ class GuestClassPathNamespaceTest(unittest.TestCase):
             self.assertEqual(before, classpath.read_bytes())
 
 
+class OplusNetdIsolationTest(unittest.TestCase):
+    def _run_helper(self, lib_dir, stage, fake_bb, abi="lib64"):
+        function = PREPARE.split("hide_oplus_netd_extension() {", 1)[1].split("\n}\n", 1)[0]
+        script = "hide_oplus_netd_extension() {" + function + "\n}\n"
+        script += 'hide_oplus_netd_extension "$1" "$2"\n'
+        return subprocess.run(
+            ["bash", "-c", script, "bash", str(lib_dir), abi],
+            env=dict(os.environ, STAGE=str(stage), BB=str(fake_bb)),
+            capture_output=True,
+            text=True,
+        )
+
+    def test_isolation_is_applied_after_final_system_ext_mounts(self):
+        addons_prepare = PREPARE.index('fold8_coloros.sh" addons-prepare')
+        final_system_ext_mount = PREPARE.index('if [ "$SEXT_MOUNT" = 1 ]; then', addons_prepare)
+        isolation = PREPARE.index("# ColorOS's Oplus netd extension registers")
+        mounts_ready = PREPARE.index('echo "=== ALL MOUNTS PREPARED SUCCESSFULLY')
+        self.assertLess(final_system_ext_mount, isolation)
+        self.assertLess(isolation, mounts_ready)
+        self.assertIn('NETD_SYSTEM_EXT="$GUEST_SYSTEM_EXT"', PREPARE[isolation:mounts_ready])
+        self.assertIn('[ "$SEXT_MOUNT" = 1 ] && NETD_SYSTEM_EXT="$ROOTFS/system_ext"', PREPARE[isolation:mounts_ready])
+
+    def test_oplus_netd_is_whiteouted_only_in_a_private_read_only_guest_view(self):
+        if not shutil.which("bash"):
+            self.skipTest("bash is required to exercise the Android shell helper")
+        self.assertIn('if [ -f "$ROOTFS/system/framework/oplus-services.jar" ]; then', PREPARE)
+        self.assertIn('for abi in lib64 lib; do', PREPARE)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            stage = root / "stage"
+            lib_dir = root / "guest/system_ext/lib64"
+            lib_dir.mkdir(parents=True)
+            netd_so = lib_dir / "liboplusNetd.so"
+            netd_so.write_bytes(b"base image library")
+            calls = root / "mount-calls"
+            fake_bb = root / "busybox"
+            fake_bb.write_text(
+                "#!/bin/sh\n"
+                f"printf '%s\\n' \"$*\" >> '{calls}'\n"
+            )
+            fake_bb.chmod(0o755)
+
+            result = self._run_helper(lib_dir, stage, fake_bb)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            commands = calls.read_text().splitlines()
+            tmpfs_mount = next(command for command in commands if command.startswith("mount -t tmpfs "))
+            overlay = tmpfs_mount.split()[-1]
+            self.assertTrue(overlay.startswith(str(stage / "tmp" / "oneos_oplus_netd_lib64_")))
+            self.assertIn(f"mount -t tmpfs -o size=128k,mode=755 tmpfs {overlay}", commands)
+            self.assertIn(f"mount --bind {lib_dir} {overlay}/lower", commands)
+            self.assertIn(f"mknod {overlay}/upper/liboplusNetd.so c 0 0", commands)
+            self.assertIn(
+                f"mount -t overlay overlay -o ro,lowerdir={overlay}/lower,upperdir={overlay}/upper,workdir={overlay}/work {lib_dir}",
+                commands,
+            )
+            self.assertIn("mount --make-private " + overlay, commands)
+            self.assertIn("mount --make-private " + overlay + "/lower", commands)
+            self.assertEqual(b"base image library", netd_so.read_bytes())
+
+    def test_symlinked_oplus_netd_is_refused_before_any_mount(self):
+        if not shutil.which("bash"):
+            self.skipTest("bash is required to exercise the Android shell helper")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            stage = root / "stage"
+            lib_dir = root / "guest/system_ext/lib"
+            lib_dir.mkdir(parents=True)
+            outside = root / "outside.so"
+            outside.write_bytes(b"keep")
+            netd_so = lib_dir / "liboplusNetd.so"
+            try:
+                netd_so.symlink_to(outside)
+            except OSError as error:
+                self.skipTest(f"symlinks are unavailable: {error}")
+            calls = root / "mount-calls"
+            fake_bb = root / "busybox"
+            fake_bb.write_text("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '" + str(calls) + "'\n")
+            fake_bb.chmod(0o755)
+
+            result = self._run_helper(lib_dir, stage, fake_bb, "lib")
+            self.assertNotEqual(0, result.returncode)
+            self.assertFalse(calls.exists())
+            self.assertEqual(b"keep", outside.read_bytes())
+
+
 if __name__ == "__main__":
     unittest.main()

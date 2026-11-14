@@ -6708,4 +6708,44 @@ if [ "$SEXT_MOUNT" = 1 ]; then
         exit 3
     fi
 fi
+# ColorOS's Oplus netd extension registers OplusNetdService from liboplusNetd.so.
+# OneOS shares the phone's Samsung netd, which does not provide that Oplus
+# extension. Hide only the ColorOS image's copy in this guest's mount namespace,
+# matching the known S21 Ultra GSI workaround of renaming it to .bak. system.raw
+# stays read-only and unchanged; an overlay whiteout makes the loader see no .so.
+# Do this after every parent system_ext overlay/bind so they cannot cover the fix.
+hide_oplus_netd_extension() {
+    local lib_dir="$1" abi="$2"
+    local netd_so="$lib_dir/liboplusNetd.so"
+    local overlay="$STAGE/tmp/oneos_oplus_netd_${abi}_$$"
+    [ -d "$lib_dir" ] && [ ! -L "$lib_dir" ] || return 1
+    [ -f "$netd_so" ] || return 0
+    [ ! -L "$netd_so" ] && [ ! -L "$STAGE/tmp" ] && [ ! -e "$overlay" ] && [ ! -L "$overlay" ] || return 1
+    mkdir -p "$STAGE/tmp" "$overlay" || return 1
+    "$BB" mount -t tmpfs -o size=128k,mode=755 tmpfs "$overlay" || return 1
+    "$BB" mount --make-private "$overlay" || return 1
+    mkdir -p "$overlay/lower" "$overlay/upper" "$overlay/work" || return 1
+    chmod 755 "$overlay/lower" "$overlay/upper" "$overlay/work" || return 1
+    "$BB" mount --bind "$lib_dir" "$overlay/lower" || return 1
+    "$BB" mount --make-private "$overlay/lower" || return 1
+    "$BB" mknod "$overlay/upper/liboplusNetd.so" c 0 0 || return 1
+    "$BB" mount -t overlay overlay \
+        -o "ro,lowerdir=$overlay/lower,upperdir=$overlay/upper,workdir=$overlay/work" \
+        "$lib_dir" || return 1
+    echo "Oplus Netd: guest-only $abi/liboplusNetd.so hidden by a read-only overlay; image left unchanged"
+}
+if [ -f "$ROOTFS/system/framework/oplus-services.jar" ]; then
+    NETD_SYSTEM_EXT="$GUEST_SYSTEM_EXT"
+    [ "$SEXT_MOUNT" = 1 ] && NETD_SYSTEM_EXT="$ROOTFS/system_ext"
+    for abi in lib64 lib; do
+        lib_dir="$NETD_SYSTEM_EXT/$abi"
+        netd_so="$lib_dir/liboplusNetd.so"
+        if [ -e "$netd_so" ] || [ -L "$netd_so" ]; then
+            if ! hide_oplus_netd_extension "$lib_dir" "$abi"; then
+                echo "ERROR: could not safely hide ColorOS $abi/liboplusNetd.so from the shared Samsung netd"
+                exit 3
+            fi
+        fi
+    done
+fi
 echo "=== ALL MOUNTS PREPARED SUCCESSFULLY $(date +%T) ==="
