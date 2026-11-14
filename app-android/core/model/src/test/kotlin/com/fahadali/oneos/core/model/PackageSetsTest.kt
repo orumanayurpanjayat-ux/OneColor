@@ -388,9 +388,10 @@ class PackageSetsTest {
 
     @Test
     fun spaceToStage() {
-        // AA17: about 27.1 GB for the S Ultra (0.4.51: the X9U IN image + its files + 11 GiB).
+        // AA17: the edited X9U IN image, its files, and the 11 GiB launch allowance.
         val need = SpaceRule.toStage(Images.FIND_X9U_IN, xin)
-        assertEquals("27.1 GB", Units.bytes(need))
+        assertEquals(Images.FIND_X9U_IN.rawBytes + xin.approxBytes + SpaceRule.LAUNCH_BYTES, need)
+        assertEquals("25.4 GB", Units.bytes(need))
         // The Pixel image is smaller: its own raw size and files.
         val pixelNeed = SpaceRule.toStage(Images.PIXEL_YOGI, pixel)
         assertEquals(6_559_223_808L + 708_239_363L + 11L * SpaceRule.GIB, pixelNeed)
