@@ -3685,7 +3685,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
     $BB sh -c "
         echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
         echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
-        t=0; total=0; dead=0; app_process_wait=0; sfgone=0; prev_failed=0; homebase=0; wmbase=0; wmseen=0
+        t=0; total=0; dead=0; app_process_wait=0; jit_abort_retry=0; sfgone=0; prev_failed=0; homebase=0; wmbase=0; wmseen=0
         while [ \$t -lt $RETURN_MAX ]; do
             # The 10 s wait ends early on a request. Run 34: Volume Up + Volume
             # Down were held 3 s from 16:43:56, but the request was handled only
@@ -3982,6 +3982,12 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # next try, 32809875, compiled in 7 s and booted). A start that
             # hangs is still bounded by ONEOS_RETURN_MAX.
             startup_stuck=0
+            if [ \$jit_abort_retry -eq 0 ] && grep -q 'retrying once with -Xforcejitzygote' $STAGE/data/takeover.log 2>/dev/null; then
+                jit_abort_retry=1
+                app_process_wait=0
+            fi
+            startup_limit=120
+            [ \$jit_abort_retry -eq 0 ] || startup_limit=60
             zygote_pid=$TAKEOVER_PID
             zygote_exe=\$(readlink /proc/$TAKEOVER_PID/exe 2>/dev/null)
             case \"\$zygote_exe\" in
@@ -4006,7 +4012,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                         # The exact app_process PID is still alive; do not
                         # count it as dead before ART names it zygote64.
                         dead=0; app_process_wait=\$((app_process_wait + 10))
-                        [ \$app_process_wait -ge 120 ] && startup_stuck=1
+                        [ \$app_process_wait -ge \$startup_limit ] && startup_stuck=1
                         ;;
                     *)
                         if [ -n \"\$(cat $STAGE/guest_mntns 2>/dev/null)\" ] &&

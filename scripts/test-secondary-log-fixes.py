@@ -106,7 +106,9 @@ class ZygoteFailureCaptureTest(unittest.TestCase):
         self.assertIn('case \\"\\$zygote_exe\\" in', body)
         self.assertIn('*/app_process64|*/app_process32)', body)
         self.assertIn(r"app_process_wait=\$((app_process_wait + 10))", body)
-        self.assertIn(r"[ \$app_process_wait -ge 120 ] && startup_stuck=1", body)
+        self.assertIn(r"[ \$app_process_wait -ge \$startup_limit ] && startup_stuck=1", body)
+        self.assertIn("startup_limit=60", body)
+        self.assertIn("jit_abort_retry=1", body)
         self.assertIn("dead=0; app_process_wait=0", body)
         self.assertIn("app_process64 pid \\$zygote_pid stayed alive without zygote registration", body)
         self.assertIn("live app_process startup state", body)
@@ -122,25 +124,52 @@ class ZygoteFailureCaptureTest(unittest.TestCase):
     def test_guest_start_records_launcher_exit_status(self):
         launch = START.split('echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."', 1)[1]
         non_root = launch.split("exec /data/adb/oneos/bin/su --launch", 1)[1]
-        self.assertIn("/data/zygote_exec\nZYGOTE_EXIT=$?", non_root)
-        self.assertIn("guest zygote launcher exited with status $ZYGOTE_EXIT", non_root)
+        self.assertIn("/data/zygote_exec &\nZYGOTE_PID=$!\nwait \"$ZYGOTE_PID\"", non_root)
+        self.assertIn('[ "$ZYGOTE_EXIT" = 134 ]', non_root)
+        self.assertIn('ONEOS_GUEST_JIT_ZYGOTE=1 /data/zygote_exec &', non_root)
+        self.assertIn("guest zygote launcher pid $ZYGOTE_PID exited with status $ZYGOTE_EXIT", non_root)
         self.assertIn('exit "$ZYGOTE_EXIT"', non_root)
         self.assertNotIn("exec /data/zygote_exec", non_root)
         if not shutil.which("bash"):
-            self.skipTest("bash is required to exercise the launcher exit-status handoff")
+            self.skipTest("bash is required to exercise the launcher fallback")
         with tempfile.TemporaryDirectory() as temp:
             launcher = Path(temp) / "zygote_exec"
-            launcher.write_text("#!/bin/sh\nexit 23\n")
-            launcher.chmod(0o755)
-            tail = START.rsplit("/data/zygote_exec\n", 1)[1]
-            result = subprocess.run(
-                ["bash", "-c", f'"{launcher}"\n{tail}'], capture_output=True, text=True
+            attempts = Path(temp) / "attempts"
+            jit_env = Path(temp) / "jit_env"
+            launcher.write_text(
+                "#!/bin/sh\n"
+                f"n=$(cat '{attempts}' 2>/dev/null || echo 0)\n"
+                f"n=$((n + 1)); echo $n > '{attempts}'\n"
+                f"echo ${'{'}ONEOS_GUEST_JIT_ZYGOTE:-0{'}'} > '{jit_env}'\n"
+                'case "${FAIL_MODE:-abort}:$n" in abort:1) exit 134;; exit:1) exit 23;; esac\n'
+                "exit 0\n"
             )
-            self.assertEqual(23, result.returncode, result.stderr)
-            self.assertIn("exited with status 23", result.stdout)
+            launcher.chmod(0o755)
+            root_start = launch.index("if [ -f /data/oneos_root/enabled ]; then")
+            non_root_body = launch[launch.index("fi\n", root_start) + 3:]
+            tail = non_root_body.replace("/data/zygote_exec", str(launcher))
+            result = subprocess.run(
+                ["bash", "-c", 'pidof() { return 1; }\n' + tail],
+                env=dict(os.environ, ONEOS_GUEST_JIT_ABORT_FALLBACK="1", ONEOS_GUEST_JIT_ZYGOTE="0"),
+                capture_output=True, text=True,
+            )
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual("2", attempts.read_text().strip())
+            self.assertEqual("1", jit_env.read_text().strip())
+            self.assertIn("retrying once with -Xforcejitzygote", result.stdout)
+
+            attempts.unlink()
+            result = subprocess.run(
+                ["bash", "-c", 'pidof() { return 1; }\n' + tail],
+                env=dict(os.environ, ONEOS_GUEST_JIT_ABORT_FALLBACK="1", ONEOS_GUEST_JIT_ZYGOTE="0", FAIL_MODE="exit"),
+                capture_output=True, text=True,
+            )
+            self.assertEqual(23, result.returncode, result.stdout + result.stderr)
+            self.assertEqual("1", attempts.read_text().strip())
+            self.assertNotIn("retrying once with -Xforcejitzygote", result.stdout)
 
     def test_kernel_su_launcher_reports_guest_process_exit_status(self):
-        launch = GUEST_ROOT_SOURCE.split("static int launch(void)", 1)[1].split(
+        launch = GUEST_ROOT_SOURCE.split("static int launch_once", 1)[1].split(
             "int main(int argc", 1
         )[0]
         self.assertIn('log_child_status("app_process",pid,w)', launch)
@@ -148,6 +177,12 @@ class ZygoteFailureCaptureTest(unittest.TestCase):
         self.assertIn('log_child_status("zygisk injector",injector,result)', launch)
         self.assertIn("WIFEXITED(status)", GUEST_ROOT_SOURCE)
         self.assertIn("WIFSIGNALED(status)", GUEST_ROOT_SOURCE)
+        self.assertIn("child_signal!=SIGABRT", GUEST_ROOT_SOURCE)
+        self.assertIn('strcmp(fallback,"0")', GUEST_ROOT_SOURCE)
+        self.assertIn('setenv("ONEOS_GUEST_JIT_ZYGOTE","1",1)', GUEST_ROOT_SOURCE)
+        self.assertIn("ONEOS_GUEST_JIT_ABORT_FALLBACK=1", START)
+        self.assertIn("if [ -f /system/framework/oplus-services.jar ]", START)
+        self.assertIn('getenv("ONEOS_GUEST_JIT_ABORT_FALLBACK")', GUEST_ROOT_SOURCE)
         self.assertIn("-o switcher/assets/guest_root switcher/native/guest_root.c", BUILD_WORKFLOW)
 
     def test_live_app_process_is_not_returned_early_and_timeout_is_bounded(self):
@@ -172,7 +207,7 @@ cat() {
         *) command cat "$@" ;;
     esac
 }
-dead=0; app_process_wait=0; BB=busybox
+dead=0; app_process_wait=0; jit_abort_retry=0; BB=busybox
 '''
         live = prefix + (decision + "\n") * 12 + 'printf "%s:%s:%s\\n" "$dead" "$app_process_wait" "$startup_stuck"\n'
         result = subprocess.run(["bash", "-c", live], env=dict(os.environ, MOCK_EXE="/system/bin/app_process64"), capture_output=True, text=True)

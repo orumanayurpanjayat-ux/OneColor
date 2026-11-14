@@ -265,9 +265,14 @@ static void log_child_status(const char *stage, pid_t pid, int status) {
                 stage, (long)pid, status);
 }
 
-static int launch(void) {
+static int launch_once(int force_jit, int *child_signal) {
+    if (child_signal) *child_signal=0;
     pid_t pid=fork();if(pid<0)return 1;
-    if(!pid){if(ptrace(PTRACE_TRACEME,0,0,0))_exit(126);execl("/data/zygote_exec","zygote_exec",NULL);_exit(127);}
+    if(!pid){
+        if(force_jit&&setenv("ONEOS_GUEST_JIT_ZYGOTE","1",1))_exit(126);
+        if(ptrace(PTRACE_TRACEME,0,0,0))_exit(126);
+        execl("/data/zygote_exec","zygote_exec",NULL);_exit(127);
+    }
     int w;char path[64],exe[512];snprintf(path,sizeof(path),"/proc/%d/exe",pid);
     for(int i=0;i<8;i++){
         pid_t got;do{got=waitpid(pid,&w,0);}while(got<0&&errno==EINTR);
@@ -294,11 +299,23 @@ static int launch(void) {
             pid_t waited;do{waited=waitpid(pid,&w,0);}while(waited<0&&errno==EINTR);
             if(waited!=pid){perror("OneOS: guest app_process exit wait");unlink(BASE "/run/injection.pid");return 1;}
             log_child_status("app_process",pid,w);
-            unlink(BASE "/run/injection.pid");return WIFEXITED(w)?WEXITSTATUS(w):1;
+            unlink(BASE "/run/injection.pid");
+            if(child_signal&&WIFSIGNALED(w))*child_signal=WTERMSIG(w);
+            return WIFEXITED(w)?WEXITSTATUS(w):1;
         }
         if(ptrace(PTRACE_SETOPTIONS,pid,0,(void*)(long)PTRACE_O_TRACEEXEC)||ptrace(PTRACE_CONT,pid,0,0)){perror("OneOS: guest app_process ptrace");kill(pid,SIGKILL);waitpid(pid,NULL,0);return 1;}
     }
     fprintf(stderr,"OneOS: guest app_process did not reach the traced executable after 8 exec events\n");kill(pid,SIGKILL);waitpid(pid,NULL,0);return 1;
+}
+static int launch(void) {
+    const char *jit=getenv("ONEOS_GUEST_JIT_ZYGOTE");
+    const char *fallback=getenv("ONEOS_GUEST_JIT_ABORT_FALLBACK");
+    if(jit&&!strcmp(jit,"1"))return launch_once(0,NULL);
+    int child_signal=0;
+    int result=launch_once(0,&child_signal);
+    if(child_signal!=SIGABRT||(fallback&&!strcmp(fallback,"0")))return result;
+    fprintf(stderr,"OneOS: guest app_process terminated by SIGABRT; retrying once with -Xforcejitzygote (set ONEOS_GUEST_JIT_ABORT_FALLBACK=0 to disable)\n");
+    return launch_once(1,NULL);
 }
 int main(int argc,char **argv) {
     signal(SIGPIPE,SIG_IGN);

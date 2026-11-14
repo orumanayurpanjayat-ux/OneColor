@@ -1496,7 +1496,8 @@ fi
 # odrefresh in the running guest built its boot image in 10 s; a guest tool
 # then started on 0.05 s of CPU instead of 0.26 s. The odrefresh step below
 # builds that boot image; without one ART compiles the boot class path in
-# memory, as with the flag.
+# memory, as with the flag. Keep that slower mode off normally; after the
+# guest app_process itself receives SIGABRT, allow one guarded JIT retry below.
 case "${ONEOS_GUEST_JIT_ZYGOTE:-}" in
     0|1) JIT_WHY="ONEOS_GUEST_JIT_ZYGOTE=$ONEOS_GUEST_JIT_ZYGOTE" ;;
     *)
@@ -1504,6 +1505,16 @@ case "${ONEOS_GUEST_JIT_ZYGOTE:-}" in
         ONEOS_GUEST_JIT_ZYGOTE=0; JIT_WHY="default" ;;
 esac
 export ONEOS_GUEST_JIT_ZYGOTE
+case "${ONEOS_GUEST_JIT_ABORT_FALLBACK:-}" in
+    0|1) ;;
+    *)
+        if [ -f /system/framework/oplus-services.jar ]; then
+            ONEOS_GUEST_JIT_ABORT_FALLBACK=1
+        else
+            ONEOS_GUEST_JIT_ABORT_FALLBACK=0
+        fi ;;
+esac
+export ONEOS_GUEST_JIT_ABORT_FALLBACK
 if [ "$ONEOS_GUEST_JIT_ZYGOTE" = 1 ]; then
     echo "[Pivoted Root] zygote: -Xforcejitzygote ($JIT_WHY): boot class path compiled in memory, framework JIT only"
 else
@@ -1526,7 +1537,6 @@ else
         echo "[Pivoted Root] zygote: the image's boot image ($JIT_WHY): $BOOT_OATS oat files in /system/framework/arm64, no updated ART or i18n module in /apex/apex-info-list.xml"
     fi
 fi
-
 echo "[Pivoted Root] Cleaning stale sockets..."
 rm -f /dev/socket/zygote /dev/socket/usap_pool_primary 2>/dev/null || true
 
@@ -2680,7 +2690,18 @@ if [ -f /data/oneos_root/enabled ]; then
     /system/bin/sh /data/oneos_runtime.sh late > /data/adb/oneos/run/late.log 2>&1 &
     exec /data/adb/oneos/bin/su --launch
 fi
-/data/zygote_exec
+/data/zygote_exec &
+ZYGOTE_PID=$!
+wait "$ZYGOTE_PID"
 ZYGOTE_EXIT=$?
-echo "[Pivoted Root] guest zygote launcher exited with status $ZYGOTE_EXIT (wait status may encode a signal)"
+if [ "$ZYGOTE_EXIT" = 134 ] && [ "$ONEOS_GUEST_JIT_ZYGOTE" != 1 ] &&
+   [ "$ONEOS_GUEST_JIT_ABORT_FALLBACK" = 1 ] &&
+   ! pidof zygote64 >/dev/null 2>&1 && ! pidof system_server >/dev/null 2>&1; then
+    echo "[Pivoted Root] guest app_process aborted with status 134 (SIGABRT); retrying once with -Xforcejitzygote"
+    ONEOS_GUEST_JIT_ZYGOTE=1 /data/zygote_exec &
+    ZYGOTE_PID=$!
+    wait "$ZYGOTE_PID"
+    ZYGOTE_EXIT=$?
+fi
+echo "[Pivoted Root] guest zygote launcher pid $ZYGOTE_PID exited with status $ZYGOTE_EXIT (wait status may encode a signal)"
 exit "$ZYGOTE_EXIT"
