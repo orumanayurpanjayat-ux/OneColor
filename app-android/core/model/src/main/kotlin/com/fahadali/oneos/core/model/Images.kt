@@ -175,7 +175,7 @@ object Images {
         gzName = "edita.img.gz",
         gzBytes = 6_585_505_221L,
         gzSha256 = "48fcddeb9de9bbdb8e7b80a73e85c63628f16e96f3e6e03130203107fed3f125",
-        rawBytes = 14_669_168_640L,
+        rawBytes = 12_989_100_032L,
         rawSha256 = "6f57f91f44dd8783ac4752dd5287da11b68e128a5ce2b2a67317d4f8d62c5e85",
         testedOn = null,
         cpuRequired = emptyList(),

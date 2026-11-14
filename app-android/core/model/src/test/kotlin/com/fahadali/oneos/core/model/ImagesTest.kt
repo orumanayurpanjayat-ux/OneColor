@@ -104,13 +104,13 @@ class ImagesTest {
         assertEquals("edita.img.gz", xin.gzName)
         assertEquals(6_585_505_221L, xin.gzBytes)
         assertEquals("48fcddeb9de9bbdb8e7b80a73e85c63628f16e96f3e6e03130203107fed3f125", xin.gzSha256)
-        assertEquals(14_669_168_640L, xin.rawBytes)
+        assertEquals(12_989_100_032L, xin.rawBytes)
         assertEquals("6f57f91f44dd8783ac4752dd5287da11b68e128a5ce2b2a67317d4f8d62c5e85", xin.rawSha256)
         assertEquals(null, xin.downloadUrl)
         assertEquals(null, xin.mirrorUrl)
         assertEquals(null, xin.testedOn)
         assertEquals(xin, Images.byGzSize(6_585_505_221L))
-        assertEquals(xin, Images.byRawSize(14_669_168_640L))
+        assertEquals(xin, Images.byRawSize(12_989_100_032L))
         assertEquals("Find X9 Ultra IN", Images.shortName(xin.id))
         // 0.4.51: the debloated Find X9 Ultra build is retired; a retired image's name stays known (old stages,
         // the last session), and its file is named, not called "not a OneOS image".
