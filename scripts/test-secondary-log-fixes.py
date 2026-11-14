@@ -261,5 +261,45 @@ dead=0; app_process_wait=0; jit_abort_retry=0; BB=busybox
         self.assertIn('for f in "$S"/data/*.log', (ROOT / "app-android/app/src/full/assets/logs/collect.list").read_text())
 
 
+class GuestClassPathNamespaceTest(unittest.TestCase):
+    def test_system_ext_classpaths_use_the_linker_permitted_mount_alias(self):
+        if not shutil.which("bash"):
+            self.skipTest("bash is required to exercise the Android shell helper")
+        normalize_call = 'normalize_guest_classpath_file "$CLASSPATH_FILE"'
+        self.assertIn(normalize_call, START)
+        self.assertLess(START.index(normalize_call), START.index('done < "$CLASSPATH_FILE"'))
+        function = START.split("normalize_guest_classpath_file() {", 1)[1].split("\n}\n", 1)[0]
+        with tempfile.TemporaryDirectory() as temp:
+            classpath = Path(temp) / "classpath"
+            classpath.write_text(
+                "export BOOTCLASSPATH /system/framework/framework.jar:/system/system_ext/framework/ext.jar\n"
+                "export SYSTEMSERVERCLASSPATH /system/system_ext/framework/services.jar\n"
+            )
+            result = subprocess.run(
+                ["bash", "-c", "normalize_guest_classpath_file() {" + function + "\n}\n"
+                 + 'normalize_guest_classpath_file "$1"', "bash", str(classpath)],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(
+                "export BOOTCLASSPATH /system/framework/framework.jar:/system_ext/framework/ext.jar\n"
+                "export SYSTEMSERVERCLASSPATH /system_ext/framework/services.jar\n",
+                classpath.read_text(),
+            )
+
+            # A second pass is a no-op and must leave an already-canonical
+            # classpath untouched.
+            before = classpath.read_bytes()
+            result = subprocess.run(
+                ["bash", "-c", "normalize_guest_classpath_file() {" + function + "\n}\n"
+                 + 'normalize_guest_classpath_file "$1"', "bash", str(classpath)],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(before, classpath.read_bytes())
+
+
 if __name__ == "__main__":
     unittest.main()

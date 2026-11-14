@@ -113,7 +113,34 @@ export TMPDIR=/data/local/tmp
 DERIVE=/apex/com.android.sdkext/bin/derive_classpath
 CLASSPATH_FILE=/data/system/environ/classpath
 mkdir -p /data/system/environ
+normalize_guest_classpath_file() {
+    local file="$1" normalized="${1}.oneos.$$"
+    [ -f "$file" ] && [ ! -L "$file" ] || return 1
+    if ! grep -qF '/system/system_ext/' "$file"; then
+        return 0
+    fi
+    if sed 's#/system/system_ext/#/system_ext/#g' "$file" > "$normalized" &&
+       [ -s "$normalized" ] && chmod 0644 "$normalized" &&
+       mv -f "$normalized" "$file"; then
+        return 0
+    fi
+    rm -f "$normalized"
+    return 1
+}
 if [ -x "$DERIVE" ] && "$DERIVE" "$CLASSPATH_FILE" > /data/derive_classpath.log 2>&1; then
+    # The ColorOS GSI stores system_ext below /system/system_ext, then
+    # guest_prepare.sh bind-mounts that tree at /system_ext. ART's default
+    # linker namespace permits /system_ext/framework but rejects the nested
+    # spelling (PLK110 warned that its AndroidX framework odex files were
+    # inaccessible). Keep classpath and odex resolution on the permitted path.
+    if grep -qF '/system/system_ext/' "$CLASSPATH_FILE"; then
+        if normalize_guest_classpath_file "$CLASSPATH_FILE"; then
+            echo "[Pivoted Root] Guest class paths: normalized system_ext entries to the ART-permitted /system_ext mount"
+        else
+            echo "[Pivoted Root] ERROR: could not normalize system_ext class paths for ART's linker namespace"
+            exit 3
+        fi
+    fi
     while read -r kw name value; do
         [ "$kw" = "export" ] && [ -n "$name" ] && export "$name=$value"
     done < "$CLASSPATH_FILE"
