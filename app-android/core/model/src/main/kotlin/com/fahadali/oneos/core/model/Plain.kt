@@ -439,7 +439,7 @@ object Plain {
             "services.jar is not the jar" in p -> PlainMessage(
                 "One UI changed during setup", "Restart your phone and try again.", FixAction.NONE, null,
             )
-            "sha-256 differs" in p || "the .gz has" in p || "the zip has" in p || "system.img has" in p || "unpacked to" in p || "unpacks to more" in p ||
+            "sha-256 differs" in p || "the .gz has" in p || "unpacked to" in p || "unpacks to more" in p ||
                 "not an ext4 image" in p || "corrupt" in p || "crc" in p || "unexpected end" in p ->
                 PlainMessage("This image file doesn't match", "It may be incomplete or another build. Get the supported $system image again.", FixAction.DOWNLOAD_AGAIN, defaultLabel(FixAction.DOWNLOAD_AGAIN))
             "ioexception" in p || "could not read" in p || "cannot open the picked file" in p -> PlainMessage(

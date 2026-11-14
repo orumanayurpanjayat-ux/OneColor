@@ -250,72 +250,33 @@ static int guard_exec(char **argv) {
     execv(argv[0],argv);perror("exec");return 1;
 }
 /* Catch only our child's app_process exec, never seize host init or scan PIDs. */
-static void log_child_status(const char *stage, pid_t pid, int status) {
-    if (WIFEXITED(status))
-        fprintf(stderr, "OneOS: guest %s pid %ld exited with status %d\n",
-                stage, (long)pid, WEXITSTATUS(status));
-    else if (WIFSIGNALED(status))
-        fprintf(stderr, "OneOS: guest %s pid %ld was terminated by signal %d\n",
-                stage, (long)pid, WTERMSIG(status));
-    else if (WIFSTOPPED(status))
-        fprintf(stderr, "OneOS: guest %s pid %ld stopped by signal %d\n",
-                stage, (long)pid, WSTOPSIG(status));
-    else
-        fprintf(stderr, "OneOS: guest %s pid %ld ended with wait status 0x%x\n",
-                stage, (long)pid, status);
-}
-
-static int launch_once(int force_jit, int *child_signal) {
-    if (child_signal) *child_signal=0;
+static int launch(void) {
     pid_t pid=fork();if(pid<0)return 1;
-    if(!pid){
-        if(force_jit&&setenv("ONEOS_GUEST_JIT_ZYGOTE","1",1))_exit(126);
-        if(ptrace(PTRACE_TRACEME,0,0,0))_exit(126);
-        execl("/data/zygote_exec","zygote_exec",NULL);_exit(127);
-    }
+    if(!pid){if(ptrace(PTRACE_TRACEME,0,0,0))_exit(126);execl("/data/zygote_exec","zygote_exec",NULL);_exit(127);}
     int w;char path[64],exe[512];snprintf(path,sizeof(path),"/proc/%d/exe",pid);
     for(int i=0;i<8;i++){
-        pid_t got;do{got=waitpid(pid,&w,0);}while(got<0&&errno==EINTR);
-        if(got!=pid){fprintf(stderr,"OneOS: guest app_process wait failed: %s\n",strerror(errno));return 1;}
-        if(!WIFSTOPPED(w)){log_child_status("app_process launcher",pid,w);return 1;}
-        ssize_t n=readlink(path,exe,sizeof(exe)-1);if(n<0){perror("OneOS: guest app_process /proc readlink");kill(pid,SIGKILL);waitpid(pid,NULL,0);return 1;}exe[n]=0;
+        if(waitpid(pid,&w,0)!=pid||!WIFSTOPPED(w))return 1;
+        ssize_t n=readlink(path,exe,sizeof(exe)-1);if(n<0)return 1;exe[n]=0;
         if(strstr(exe,"/app_process64")){
             /* At an exec-event stop, DETACH's signal argument need not be
              * delivered. Queue a real SIGSTOP, detach without injecting a
              * signal, and confirm a group-stop before the tracer handoff. */
-            if(kill(pid,SIGSTOP)||ptrace(PTRACE_DETACH,pid,0,0)){perror("OneOS: guest app_process tracer handoff");kill(pid,SIGKILL);waitpid(pid,NULL,0);return 1;}
+            if(kill(pid,SIGSTOP)||ptrace(PTRACE_DETACH,pid,0,0))return 1;
             pid_t stopped;
             do { stopped=waitpid(pid,&w,WUNTRACED); } while(stopped<0&&errno==EINTR);
-            if(stopped!=pid||!WIFSTOPPED(w)||WSTOPSIG(w)!=SIGSTOP){if(stopped==pid)log_child_status("app_process handoff",pid,w);else perror("OneOS: guest app_process stop wait");kill(pid,SIGKILL);waitpid(pid,NULL,0);return 1;}
+            if(stopped!=pid||!WIFSTOPPED(w)||WSTOPSIG(w)!=SIGSTOP){kill(pid,SIGKILL);waitpid(pid,NULL,0);return 1;}
             char number[24];snprintf(number,sizeof(number),"%d",pid);
             pid_t injector=fork();if(!injector){execl(BASE "/bin/zygisk-ptrace64","zygisk-ptrace64","trace",number,"--spawn",NULL);_exit(127);}
-            if(injector<0){perror("OneOS: guest injection fork");kill(pid,SIGKILL);waitpid(pid,NULL,0);return 1;}
-            int result;pid_t injected;do{injected=waitpid(injector,&result,0);}while(injected<0&&errno==EINTR);
-            if(injected!=injector){perror("OneOS: guest injection wait");kill(pid,SIGKILL);waitpid(pid,NULL,0);return 1;}
-            if(!WIFEXITED(result)||WEXITSTATUS(result)){log_child_status("zygisk injector",injector,result);kill(pid,SIGKILL);waitpid(pid,NULL,0);fprintf(stderr,"OneOS: guest injection failed; boot aborted\n");return 1;}
+            if(injector<0)return 1;int result;while(waitpid(injector,&result,0)<0&&errno==EINTR){}
+            if(!WIFEXITED(result)||WEXITSTATUS(result)){kill(pid,SIGKILL);waitpid(pid,NULL,0);fprintf(stderr,"OneOS: guest injection failed; boot aborted\n");return 1;}
             FILE *proof=fopen(BASE "/run/injection.pid","we");
             if(proof){fprintf(proof,"%d\n",pid);fclose(proof);}
-            if(kill(pid,SIGCONT)){perror("OneOS: guest app_process resume");kill(pid,SIGKILL);waitpid(pid,NULL,0);unlink(BASE "/run/injection.pid");return 1;}
-            pid_t waited;do{waited=waitpid(pid,&w,0);}while(waited<0&&errno==EINTR);
-            if(waited!=pid){perror("OneOS: guest app_process exit wait");unlink(BASE "/run/injection.pid");return 1;}
-            log_child_status("app_process",pid,w);
-            unlink(BASE "/run/injection.pid");
-            if(child_signal&&WIFSIGNALED(w))*child_signal=WTERMSIG(w);
-            return WIFEXITED(w)?WEXITSTATUS(w):1;
+            kill(pid,SIGCONT);while(waitpid(pid,&w,0)<0&&errno==EINTR){}
+            unlink(BASE "/run/injection.pid");return WIFEXITED(w)?WEXITSTATUS(w):1;
         }
-        if(ptrace(PTRACE_SETOPTIONS,pid,0,(void*)(long)PTRACE_O_TRACEEXEC)||ptrace(PTRACE_CONT,pid,0,0)){perror("OneOS: guest app_process ptrace");kill(pid,SIGKILL);waitpid(pid,NULL,0);return 1;}
+        if(ptrace(PTRACE_SETOPTIONS,pid,0,(void*)(long)PTRACE_O_TRACEEXEC)||ptrace(PTRACE_CONT,pid,0,0))return 1;
     }
-    fprintf(stderr,"OneOS: guest app_process did not reach the traced executable after 8 exec events\n");kill(pid,SIGKILL);waitpid(pid,NULL,0);return 1;
-}
-static int launch(void) {
-    const char *jit=getenv("ONEOS_GUEST_JIT_ZYGOTE");
-    const char *fallback=getenv("ONEOS_GUEST_JIT_ABORT_FALLBACK");
-    if(jit&&!strcmp(jit,"1"))return launch_once(0,NULL);
-    int child_signal=0;
-    int result=launch_once(0,&child_signal);
-    if(child_signal!=SIGABRT||(fallback&&!strcmp(fallback,"0")))return result;
-    fprintf(stderr,"OneOS: guest app_process terminated by SIGABRT; retrying once with -Xforcejitzygote (set ONEOS_GUEST_JIT_ABORT_FALLBACK=0 to disable)\n");
-    return launch_once(1,NULL);
+    kill(pid,SIGKILL);waitpid(pid,NULL,0);return 1;
 }
 int main(int argc,char **argv) {
     signal(SIGPIPE,SIG_IGN);

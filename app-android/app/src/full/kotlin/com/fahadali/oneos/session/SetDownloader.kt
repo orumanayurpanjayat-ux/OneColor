@@ -32,11 +32,6 @@ object SetDownloader {
     /** SourceForge's folder of the set files, each named by its SHA-256 (0.4.65; the source "sf"). */
     const val SF_FILES = "https://downloads.sourceforge.net/project/oneos-mirror/files/"
 
-    /** The upstream OneLineage APK used to remove Samsung's RANGING permission reference. */
-    const val PERMISSION_PATCH_SHA256 = "4c3978e8d72c82013726d8e1ea4914c04ebef4fa099339dafd9b53543f402df3"
-    const val PERMISSION_PATCH_SOURCE = "url:https://raw.githubusercontent.com/WeWaffles/OneLineage/10cd368dc4c67f3ec7e9c885e0474233cde8edcd/assets/PermissionController_patched.apk"
-    private const val PERMISSION_PATCH_URL = "https://raw.githubusercontent.com/WeWaffles/OneLineage/10cd368dc4c67f3ec7e9c885e0474233cde8edcd/assets/PermissionController_patched.apk"
-
     /**
      * Where [source] hands out the file [sha256]: "gh:<tag>" is that release's asset (GitHub's CDN, no daily
      * limit), "sf" SourceForge's mirror of them (no daily limit either; it redirects to a download server), anything
@@ -54,11 +49,6 @@ object SetDownloader {
             require(Regex("[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9_.-]*").matches(repo) && Regex("[a-z0-9][a-z0-9.-]{0,39}").matches(tag))
             "https://github.com/$repo/releases/download/$tag/$sha256"
         }
-        else if (source == PERMISSION_PATCH_SOURCE) {
-            require(sha256 == PERMISSION_PATCH_SHA256) { "the PermissionController URL is pinned to its APK hash" }
-            PERMISSION_PATCH_URL
-        }
-        else if (source.startsWith("url:")) throw IllegalArgumentException("unrecognized direct download source")
         else "https://drive.usercontent.google.com/download?id=$source&export=download&confirm=t"
 
     fun dir(ctx: Context): File = File(ctx.applicationContext.filesDir, "oneos-files").apply { mkdirs() }

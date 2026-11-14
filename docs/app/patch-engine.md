@@ -412,10 +412,9 @@ Payloads depend only on the image and survive One UI updates and fix packs.
 
 ## 6. `surfaceflinger_patched`
 
-For the Find X9 Ultra image, `make-overlays.sh` checks the binary's SHA-1 and
-changes the bytes `680200b4` (`cbz x8, +0x4c`) at file offset `0x470bc8` to
-`13000014` (`b +0x4c`). The PLK110 GSI has the same extension-client fallback,
-but a different SurfaceFlinger executable and patch offset. In the PLK110
+Today (`make-overlays.sh:101-122`): if the binary's SHA-1 starts with
+`9896c0cba131`, the bytes `680200b4` (`cbz x8, +0x4c`) at file offset
+`0x470bc8` become `13000014` (`b +0x4c`); otherwise nothing is built. In the
 image's binary (NDK 30 `llvm-objdump`):
 
 ```
@@ -454,19 +453,6 @@ surfaceflinger imports `call`, marked experimental). Otherwise the guest runs
 its stock surfaceflinger, as with `ONEOS_STOCK_SF=1`. A wrong patch is not a
 safety issue: the panel stays black and the watcher returns after 150 s. The
 same format serves native libraries (`libaudio*_aidl_conversion*_patched.so`).
-
-PLK110's exact `system.img` is SHA-256
-`43593ee631299f710fb091bc7f635627e91bd81fca7a8ab759ee3573cd621314`. Its
-7,335,808-byte `/system/bin/surfaceflinger` is SHA-256
-`46440a04787d42484b134fd2feed559822daa4a93d9428a3f7078616ab57f93c`; the
-Qualcomm extension call sequence is at `0x470880`–`0x470894`, and the checked
-branch is at `0x470888`. The PLK110 package set deliberately omits the X9U
-`surfaceflinger_patched` executable. At session setup, `guest_prepare.sh`
-copies PLK110's own binary, changes only that four-byte branch, then verifies
-the full patched-file SHA-256
-`05d5fc761bf3556d97e59b6185686760545ef0b08847633b550ee03475fbfd5a` before
-binding the copy inside the guest. Any source or output hash mismatch stops
-setup before the guest starts.
 
 ## 7. RROs
 

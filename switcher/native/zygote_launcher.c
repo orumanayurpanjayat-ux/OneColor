@@ -11,9 +11,8 @@
  * the original defaults for variables that are not set.
  *
  * Like init's "socket zygote stream 660 root system" it creates the zygote and
- * usap pool sockets, passes them as fds 3 and 4, records app_process64's
- * startup output in the guest data partition, and closes every other fd
- * before the exec. stdin stays on /dev/null.
+ * usap pool sockets, passes them as fds 3 and 4, points stdio at /dev/null and
+ * closes every other fd before the exec.
  *
  * -Xforcejitzygote (always passed by OneLineage's launcher, and by this one up
  * to run 44) only when ONEOS_GUEST_JIT_ZYGOTE=1, which guest_start.sh exports
@@ -22,7 +21,6 @@
  * (dex2oat64 --compiler-filter=verify) and runs framework code JIT-compiled
  * only. ONEOS_GUEST_JIT_ZYGOTE itself is not passed on to zygote.
  */
-#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,55 +31,6 @@
 #include <unistd.h>
 
 #define AID_SYSTEM 1000
-#define ZYGOTE_LOG_PATH "/data/zygote_exec.log"
-
-static void redirect_stdio(void) {
-    int null_fd = open("/dev/null", O_RDONLY);
-    if (null_fd >= 0) {
-        if (dup3(null_fd, STDIN_FILENO, 0) < 0) perror("zygote_launcher: stdin /dev/null");
-        if (null_fd > STDERR_FILENO) close(null_fd);
-    } else {
-        perror("zygote_launcher: open /dev/null");
-    }
-
-    int log_fd = open(ZYGOTE_LOG_PATH, O_WRONLY | O_APPEND | O_CLOEXEC | O_NOFOLLOW, 0600);
-    if (log_fd < 0) {
-        fprintf(stderr, "zygote_launcher: cannot open %s; keeping takeover.log stderr: %s\n",
-                ZYGOTE_LOG_PATH, strerror(errno));
-        return;
-    }
-
-    struct stat st;
-    if (fstat(log_fd, &st) < 0) {
-        int saved_errno = errno;
-        close(log_fd);
-        fprintf(stderr, "zygote_launcher: refusing unsafe %s; keeping takeover.log stderr: %s\n",
-                ZYGOTE_LOG_PATH, strerror(saved_errno));
-        return;
-    }
-    if (!S_ISREG(st.st_mode)) {
-        close(log_fd);
-        fprintf(stderr, "zygote_launcher: refusing non-regular %s; keeping takeover.log stderr\n",
-                ZYGOTE_LOG_PATH);
-        return;
-    }
-    if (fchmod(log_fd, 0600) < 0) {
-        int saved_errno = errno;
-        close(log_fd);
-        fprintf(stderr, "zygote_launcher: cannot protect %s; keeping takeover.log stderr: %s\n",
-                ZYGOTE_LOG_PATH, strerror(saved_errno));
-        return;
-    }
-
-    if (dup3(log_fd, STDOUT_FILENO, 0) < 0 || dup3(log_fd, STDERR_FILENO, 0) < 0) {
-        int saved_errno = errno;
-        close(log_fd);
-        errno = saved_errno;
-        perror("zygote_launcher: redirect startup output");
-        return;
-    }
-    if (log_fd > STDERR_FILENO) close(log_fd);
-}
 
 static void make_socket(const char *path, int target_fd) {
     struct sockaddr_un addr = {.sun_family = AF_UNIX};
@@ -122,7 +71,6 @@ int main(void) {
     int n = 0;
 
     setpgid(0, 0);
-    redirect_stdio();
     make_socket("/dev/socket/zygote", 3);
     make_socket("/dev/socket/usap_pool_primary", 4);
 
@@ -145,11 +93,18 @@ int main(void) {
 
     const char *jit = getenv("ONEOS_GUEST_JIT_ZYGOTE");
     int force_jit = jit && strcmp(jit, "1") == 0;
-    /* The launch choice is included with app_process64's startup output. */
+    /* Still on guest_start.sh's stdout and stderr (takeover.log). */
     fprintf(stderr, "zygote_launcher: %s (ONEOS_GUEST_JIT_ZYGOTE=%s)\n",
             force_jit ? "-Xforcejitzygote" : "the image's boot image, no -Xforcejitzygote",
             jit ? jit : "unset");
 
+    int null_fd = open("/dev/null", O_RDWR);
+    if (null_fd >= 0) {
+        dup3(null_fd, 0, 0);
+        dup3(null_fd, 1, 0);
+        dup3(null_fd, 2, 0);
+        if (null_fd > 4) close(null_fd);
+    }
     for (int fd = 5; fd < 1024; fd++) close(fd);
 
     char *argv[8];
@@ -163,6 +118,5 @@ int main(void) {
     argv[a++] = "--socket-name=zygote";
     argv[a] = NULL;
     execve("/system/bin/app_process64", argv, envp);
-    perror("zygote_launcher: execve /system/bin/app_process64");
     return 127;
 }

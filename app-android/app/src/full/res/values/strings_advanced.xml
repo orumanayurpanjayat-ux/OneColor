@@ -166,7 +166,7 @@
     <string name="image_no_profile_title">No system for this phone yet</string>
     <string name="image_no_profile_summary">This version of OneOS has none for this phone. Phone details, in Settings › For the OneOS team, shows why.</string>
     <string name="image_cat_file">Your file</string>
-    <string name="image_pick_summary">Choose a local .img or supported archive. OneOS verifies the full file and inner image, then uses only the matching patch set.</string>
+    <string name="image_pick_summary">Choose a local .img or .img.gz. OneOS verifies the whole image and uses only its matching patch set.</string>
     <string name="image_not_used">%1$s · not used: setup reuses the system already on this phone</string>
     <string name="image_file_ok">It\'s %1$s for this phone</string>
     <string name="image_check_title">Check the file</string>

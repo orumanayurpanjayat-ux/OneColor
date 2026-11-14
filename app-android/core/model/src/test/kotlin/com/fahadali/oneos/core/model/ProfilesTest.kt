@@ -148,10 +148,7 @@ class ProfilesTest {
         val s24u = Profiles.S_ULTRA_8650
         assertEquals(listOf("s-ultra-8650", "Galaxy S24 Ultra"), listOf(s24u.id, s24u.label))
         assertEquals(listOf("SM-S928", "e3q", "SM8650"), listOf(s24u.modelPrefix, s24u.codename, s24u.socModel))
-        assertEquals(
-            listOf(xin, ImageChoice(Images.ID_COLOROS17_PLK110, PackageSets.ID_COLOROS17_PLK110_SULTRA, tested = false), pixel9, ifxT, hyper, nothing, origin),
-            s24u.choices,
-        ) // PLK110 ColorOS GSI is experimental; OriginOS 7 remains untested too.
+        assertEquals(listOf(xin, pixel9, ifxT, hyper, nothing, origin), s24u.choices) // 0.4.82: OriginOS 7, untested
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), s24u.notes.map { it.id })
         assertTrue(s24u.notes.single().detail.contains("vendor API 34 (Android 14) and kernel 6.1"))
         // Galaxy S26+ (0.4.12): the S26's images and sets, untested, no notes (vendor API 202504).
@@ -555,7 +552,7 @@ class ProfilesTest {
         assertEquals(listOf(Profiles.ID_NOTE_EXYNOS, Profiles.ID_NOTE_OLDER_VENDOR), Profiles.S_9945.notes.map { it.id })
         // 0.4.83: the Exynos S24 and S24+ take the S24 Ultra's systems (Infinity-X untested on them), with their own notes;
         // the S24+ (Exynos) from the owner's SM-S926B probe. A Snapdragon S24+ (e2q) has sent no probe: no profile.
-        assertEquals(Profiles.S_ULTRA_8650.choices.filterNot { it.imageId == Images.ID_COLOROS17_PLK110 }.map { it.copy(tested = false) }, Profiles.S_9945.choices)
+        assertEquals(Profiles.S_ULTRA_8650.choices.map { it.copy(tested = false) }, Profiles.S_9945.choices)
         assertEquals(Profiles.S_8650.choices, Profiles.S_9945.choices)
         assertEquals(Profiles.S_PLUS_9945, profile("SM-S926B", "e2s", "s5e9945"))
         assertEquals(listOf("s-plus-9945", "Galaxy S24+ (Exynos)", FormFactor.BAR), listOf(Profiles.S_PLUS_9945.id, Profiles.S_PLUS_9945.label, Profiles.S_PLUS_9945.form))

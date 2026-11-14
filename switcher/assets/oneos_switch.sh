@@ -1961,7 +1961,7 @@ protect_zygote_sockets() {
         for c in $($BB pgrep -P "$TAKEOVER_PID" 2>/dev/null); do
             case "$(readlink "/proc/$c/exe" 2>/dev/null)" in */app_process64) zc=$c; break ;; esac
         done
-        [ -z "$zc" ] || { echo "Zygote sockets: the guest zygote is $zc, started by takeover PID $TAKEOVER_PID"; break; }
+        [ -z "$zc" ] || { echo "Zygote sockets: the guest zygote is $zc, started by the guest root launcher $TAKEOVER_PID"; break; }
         n=$((n + 1))
         [ $n -lt 3000 ] || { echo "Zygote sockets: the guest zygote did not start within 300 s, not protected"; return 0; }
         sleep 0.1
@@ -3685,7 +3685,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
     $BB sh -c "
         echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
         echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
-        t=0; total=0; dead=0; app_process_wait=0; jit_abort_retry=0; sfgone=0; prev_failed=0; homebase=0; wmbase=0; wmseen=0
+        t=0; total=0; dead=0; sfgone=0; prev_failed=0; homebase=0; wmbase=0; wmseen=0
         while [ \$t -lt $RETURN_MAX ]; do
             # The 10 s wait ends early on a request. Run 34: Volume Up + Volume
             # Down were held 3 s from 16:43:56, but the request was handled only
@@ -3969,98 +3969,28 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # A running surfaceflinger can still show nothing: when the composer
             # rejects its frames the panel keeps the last host frame.
             # The guest framework is gone for good once its zygote died: the
-            # launcher exec'd app_process64, so nothing restarts it. However,
-            # app_process64 may still be starting ART before it registers as
-            # zygote64; allow that live process a bounded 120 s. If the process
-            # exits, the existing 30 s return remains. Before app_process64,
-            # guest_start.sh (or zygote_exec) is still starting. Z Fold7
-            # OriginOS 7 report de5f30bd (0.4.73):
+            # launcher exec'd app_process64, so nothing restarts it.
+            # Before that the takeover process is still guest_start.sh (or
+            # zygote_exec), in the guest's mount namespace: the guest is still
+            # starting, not dead. Z Fold7 OriginOS 7 report de5f30bd (0.4.73):
             # guest_start.sh's odrefresh (the guest's boot image, vivo) began
             # 36 s after the takeover and compiled for 14 s; this check counted
             # 30 s without a zygote and returned at 09:24:50, four seconds
             # before odrefresh ended and the zygote would have started (the
             # next try, 32809875, compiled in 7 s and booted). A start that
             # hangs is still bounded by ONEOS_RETURN_MAX.
-            startup_stuck=0
-            if [ \$jit_abort_retry -eq 0 ] && grep -q 'retrying once with -Xforcejitzygote' $STAGE/data/takeover.log 2>/dev/null; then
-                jit_abort_retry=1
-                app_process_wait=0
-            fi
-            startup_limit=120
-            [ \$jit_abort_retry -eq 0 ] || startup_limit=60
-            zygote_pid=$TAKEOVER_PID
-            zygote_exe=\$(readlink /proc/$TAKEOVER_PID/exe 2>/dev/null)
-            case \"\$zygote_exe\" in
-                */app_process64|*/app_process32) ;;
-                *)
-                    # Rooted sessions keep the takeover PID as the OneOS su
-                    # launcher; app_process is its direct child. The same
-                    # shape is used by the non-root exit-status wrapper below.
-                    for c in \$($BB pgrep -P \"$TAKEOVER_PID\" 2>/dev/null); do
-                        child_exe=\$(readlink /proc/\$c/exe 2>/dev/null)
-                        case \"\$child_exe\" in
-                            */app_process64|*/app_process32) zygote_pid=\$c; zygote_exe=\$child_exe; break ;;
-                        esac
-                    done
-                    ;;
-            esac
             if pidof system_server >/dev/null || pidof zygote64 >/dev/null; then
-                dead=0; app_process_wait=0
+                dead=0
+            elif [ -n \"\$(cat $STAGE/guest_mntns 2>/dev/null)\" ] &&
+                 [ \"\$(readlink /proc/$TAKEOVER_PID/ns/mnt 2>/dev/null)\" = \"\$(cat $STAGE/guest_mntns 2>/dev/null)\" ] &&
+                 case \"\$(readlink /proc/$TAKEOVER_PID/exe 2>/dev/null)\" in */app_process64|*/app_process32|'') false ;; *) true ;; esac; then
+                dead=0
             else
-                case \"\$zygote_exe\" in
-                    */app_process64|*/app_process32)
-                        # The exact app_process PID is still alive; do not
-                        # count it as dead before ART names it zygote64.
-                        dead=0; app_process_wait=\$((app_process_wait + 10))
-                        [ \$app_process_wait -ge \$startup_limit ] && startup_stuck=1
-                        ;;
-                    *)
-                        if [ -n \"\$(cat $STAGE/guest_mntns 2>/dev/null)\" ] &&
-                           [ \"\$(readlink /proc/$TAKEOVER_PID/ns/mnt 2>/dev/null)\" = \"\$(cat $STAGE/guest_mntns 2>/dev/null)\" ] &&
-                           [ -n \"\$zygote_exe\" ]; then
-                            dead=0; app_process_wait=0
-                        else
-                            app_process_wait=0
-                            dead=\$((dead + 10))
-                        fi
-                        ;;
-                esac
-            fi
-            if [ \$startup_stuck -eq 1 ] || [ \$dead -ge 30 ]; then
-                if [ \$startup_stuck -eq 1 ]; then
-                    failure_reason=\"app_process64 pid \$zygote_pid stayed alive without zygote registration for \${app_process_wait}s\"
-                    echo \"\$(date) \$failure_reason; returning to One UI\"
-                else
-                    failure_reason=\"guest zygote/system_server absent after \${t}s (gone for \${dead}s)\"
+                dead=\$((dead + 10))
+                if [ \$dead -ge 30 ]; then
                     echo \"\$(date) guest zygote/system_server gone for \${dead}s after \${t}s, returning to One UI\"
+                    exec /system/bin/sh $STAGE/return_to_oneui.sh
                 fi
-                {
-                    echo \"\$(date) zygote failure snapshot: \$failure_reason\"
-                    if [ \$startup_stuck -eq 1 ]; then
-                        echo '--- live app_process startup state'
-                        echo \"pid=\$zygote_pid owner=$TAKEOVER_PID exe=\$zygote_exe mnt=\$(readlink /proc/\$zygote_pid/ns/mnt 2>/dev/null)\"
-                        grep -E '^(Name|State|PPid|Threads|VmRSS):' /proc/\$zygote_pid/status 2>&1
-                        echo \"wchan: \$(cat /proc/\$zygote_pid/wchan 2>&1)\"
-                        cat /proc/\$zygote_pid/stack 2>&1
-                    fi
-                    echo '--- guest startup launcher output'
-                    tail -n 80 $STAGE/data/takeover.log 2>&1
-                    tail -n 80 $STAGE/data/zygote_exec.log 2>&1
-                    echo '--- guest startup crash records (last 3000 log entries)'
-                    timeout 10 logcat -b all -d -t 3000 -v threadtime 2>/dev/null | grep -a -i -E 'zygote|system_server|app_process64|AndroidRuntime|FATAL EXCEPTION|Fatal signal|Abort message|linker|NoClassDefFoundError|NoSuchMethodError|BOOT FAILURE|art::|libc|dex2oat|odrefresh|apexd' | tail -n 400
-                    echo '--- kernel fatal and process-kill records'
-                    timeout 5 dmesg -T 2>/dev/null | grep -a -i -E 'zygote|system_server|app_process|killed process|oom|segfault|avc: denied' | tail -n 100
-                    if [ \$startup_stuck -eq 1 ]; then
-                        case \"\$(readlink /proc/\$zygote_pid/exe 2>/dev/null)\" in
-                            */app_process64|*/app_process32)
-                                if [ \"\$(readlink /proc/\$zygote_pid/ns/mnt 2>/dev/null)\" = \"\$(cat $STAGE/guest_mntns 2>/dev/null)\" ]; then
-                                    kill -9 \$zygote_pid 2>/dev/null
-                                    echo \"Stopped the stalled guest app_process pid \$zygote_pid before safe return\"
-                                fi ;;
-                        esac
-                    fi
-                } >> $STAGE/data/zygote_failure.log 2>&1
-                exec /system/bin/sh $STAGE/return_to_oneui.sh
             fi
             # Nothing restarts the guest's surfaceflinger either: once
             # guest_start.sh has started it (its takeover.log line), 30 s

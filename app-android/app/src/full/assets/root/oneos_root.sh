@@ -147,11 +147,7 @@ INSTALLD_SHA_36=a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977
 INSTALLD_OK_36="a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977 9cd356141db2861d0e3858b923cbd1baf9dc1473e62c9dac4e655379abd09b21"
 # Session scripts from switcher/assets plus the expected installd table.
 SCRIPTS="guest_runtime.sh guest_root guest_zygiskd guest_zygisk_ptrace guest_zygisk.so guest_vector.bundle guest_manager.apk oneos_switch.sh oneos_lockstate.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio OneOSOverlayDimen.dex host_installd.txt"
-SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk PermissionController_patched.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
-# PLK110 stages only its own image-built ColorOS patches and payloads; no
-# Find X9 Ultra camera, theme, AI or SystemUI payloads are reused. Its
-# SurfaceFlinger patch is built from the image's hash-verified binary at launch.
-SET_COMMON_PLK="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk PermissionController_patched.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
+SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
 # The Pixel sets (the Fold's 0.3.7, the S26 Ultra's 0.4.10, the Pixel 9 Pro XL's 0.4.22): services.jar with the guest vold as gvld, the signal
 # poll, Pixel's status bar RRO, the in-guest OneOS app and its own payloads.
 SET_PIXEL="services_patched.jar framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar vold_patched service.incremental_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSPixelStatusBar.apk OneOSPixelDoze.apk OneOSGuest.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
@@ -302,7 +298,6 @@ profile_set() {
         "s-8850-jp coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-8850-jp pixel11pro-kodiak") echo pixel-sultra ;;
         "s-ultra-8650 coloros17-findx9u-in") echo x9u-in-sultra ;;
-        "s-ultra-8650 coloros17-plk110-xgsi") echo coloros17-plk110-sultra ;;
         "s-ultra-8650 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8550 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
@@ -517,7 +512,6 @@ image_raw() {
     case "$1" in
         coloros17-findn6) echo "14829686784 eec6c10581657b17f3164d6f964c749b351c4a7ec07233840da5f6a0ce28a47c" ;;
         coloros17-findx9u-in) echo "14669168640 92c7cd8485dd6ef80d1f5c734ea13a8744510c15b77a18471eb11078df84ddb6" ;;
-        coloros17-plk110-xgsi) echo "6644899840 43593ee631299f710fb091bc7f635627e91bd81fca7a8ab759ee3573cd621314" ;;
         pixel11fold-yogi) echo "6559223808 8b303c37916288545b3b4a317c368d89680b5c3ce09873dc764381ddd0e32830" ;;
         pixel11pro-kodiak) echo "6529871872 ac661a520263fa73a2b9996f19763350457b1558863d1dc15326a365ce1784c6" ;;
         hyperos-lhasa) echo "7749939200 269309b8869d4de41c5c852d230b4b7075b8ff733d9244f4fb868ec7109baeac" ;;
@@ -535,7 +529,6 @@ set_files() {
         n6-global-f8) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar GlobalVerifiedAddons.tar" ;;
         n6-f8u) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar" ;;
         x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar SystemUI_wave.dex OneOSWaveRepack.dex" ;;
-        coloros17-plk110-sultra) echo "$SET_COMMON_PLK framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so" ;;
         pixel-f8u) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex OneOSPixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk OneOSFoldCutout.apk" ;;
         pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk" ;;
         pixel-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk" ;;
@@ -555,7 +548,6 @@ set_image() {
         n6-global-f8) echo coloros17-findn6 ;;
         n6-f8u) echo coloros17-findn6 ;;
         x9u-in-sultra) echo coloros17-findx9u-in ;;
-        coloros17-plk110-sultra) echo coloros17-plk110-xgsi ;;
         pixel-f8u|pixel-f8) echo pixel11fold-yogi ;;
         pixel-sultra) echo pixel11pro-kodiak ;;
         hyper-f8u) echo hyperos-lhasa ;;
@@ -576,7 +568,7 @@ set_image() {
 # (com.miui.) (data_family).
 image_family() {
     case "$1" in
-        coloros17-findn6|coloros17-findx9u|coloros17-findx9u-in|coloros17-plk110-xgsi) echo coloros ;;
+        coloros17-findn6|coloros17-findx9u|coloros17-findx9u-in) echo coloros ;;
         pixel11fold-yogi|pixel11pro-kodiak|pixel9proxl-komodo) echo pixel ;;
         infinityx41-findx9u) echo infinityx ;;
         hyperos-lhasa) echo hyperos ;;

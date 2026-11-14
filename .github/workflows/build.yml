@@ -88,8 +88,7 @@ jobs:
               'platforms;android-37.0' \
               'build-tools;36.0.0' \
               'build-tools;37.0.0' \
-              'platform-tools' \
-              'ndk;27.2.12479018'; then
+              'platform-tools'; then
               installed=true
               break
             fi
@@ -138,7 +137,7 @@ jobs:
           }
 
           echo 'Installed Android packages:'
-          sdkmanager --list_installed | grep -E 'platforms;android-37|build-tools;36.0.0|build-tools;37.0.0|platform-tools|ndk;27.2.12479018' || true
+          sdkmanager --list_installed | grep -E 'platforms;android-37|build-tools;36.0.0|build-tools;37.0.0|platform-tools' || true
           ls -ld "${SDK_ROOT}/platforms/android-37" "${SDK_ROOT}/platforms/android-37.0"
 
       - name: Verify repository build inputs
@@ -155,12 +154,6 @@ jobs:
           test -s app-android/packages/patch-sources.json
           test -s scripts/check-staging-apk.py
           test -s scripts/build-guest-manager.sh
-          test -s scripts/test-plk110-surfaceflinger.py
-          test -s scripts/test-plk110-overlay-builder.py
-          test -s scripts/test-oplus-boot-hangs.py
-          test -s scripts/inspect-plk110-crashrecovery.py
-          test -s scripts/build-plk110-overlays.sh
-          test -s scripts/test-secondary-log-fixes.py
           test -s scripts/test-host-apex-bind.py
           test -s switcher/assets/oneos_switch.sh
           test -s switcher/assets/guest_runtime.sh
@@ -174,47 +167,6 @@ jobs:
 
       - name: Test guest host-APEX bind regression
         run: python3 scripts/test-host-apex-bind.py
-
-      - name: Test PLK110 SurfaceFlinger patch safeguards
-        run: python3 scripts/test-plk110-surfaceflinger.py
-
-      - name: Test PLK110 image-bound overlay builder
-        run: python3 scripts/test-plk110-overlay-builder.py
-
-      - name: Test ColorOS boot-hang patcher register variants
-        run: python3 scripts/test-oplus-boot-hangs.py
-
-      - name: Test PLK110 secondary log fixes
-        run: python3 scripts/test-secondary-log-fixes.py
-
-      - name: Build guest launch helpers from source
-        run: |
-          set -Eeuo pipefail
-
-          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/.android/sdk}}"
-          NDK_ROOT="${SDK_ROOT}/ndk/27.2.12479018"
-          CC="${NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
-          STRIP="${NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
-
-          [[ -x "${CC}" && -x "${STRIP}" ]] || {
-            echo 'Pinned Android NDK compiler or strip tool is missing.' >&2
-            exit 1
-          }
-
-          "${CC}" --target=aarch64-linux-android29 -static -O2 -Wall -Wextra \
-            -o switcher/assets/zygote_exec switcher/native/zygote_launcher.c
-          "${STRIP}" switcher/assets/zygote_exec
-          file switcher/assets/zygote_exec
-          ls -lh switcher/assets/zygote_exec
-
-          "${CC}" --target=aarch64-linux-android29 -static -O2 -Wall -Wextra \
-            -o switcher/assets/guest_root switcher/native/guest_root.c
-          "${STRIP}" switcher/assets/guest_root
-          file switcher/assets/guest_root
-          ls -lh switcher/assets/guest_root
-
-      - name: Check guest shell syntax
-        run: bash -n app-android/app/src/full/assets/root/oneos_root.sh switcher/assets/guest_prepare.sh switcher/assets/guest_start.sh switcher/assets/oneos_switch.sh scripts/build-plk110-overlays.sh
 
       - name: Test thermal profiles and performance handover
         run: |

@@ -1702,60 +1702,13 @@ if [ "$(stat -c %d:%i "$ROOTFS/system/framework/services.jar")" != "$(stat -c %d
     echo "ERROR: the guarded services.jar is not in place; not starting the guest"
     exit 3
 fi
-# Apply a patch to a copy only when both complete file hashes match. This keeps
-# a patch for one OEM build from ever being bound over a different guest image.
-oneos_patch_binary() {
-    _sf_src=$1 _sf_dst=$2 _sf_source_sha=$3 _sf_output_sha=$4 _sf_offset=$5 _sf_bytes=$6
-    _sf_actual=$(sha256sum "$_sf_src" 2>/dev/null | cut -d' ' -f1)
-    [ "$_sf_actual" = "$_sf_source_sha" ] || {
-        echo "ERROR: SurfaceFlinger patch source hash mismatch (expected $_sf_source_sha, got ${_sf_actual:-unreadable})"
-        return 1
-    }
-    if [ -L "$_sf_dst" ] || { [ -e "$_sf_dst" ] && [ ! -f "$_sf_dst" ]; }; then
-        echo "ERROR: refusing unexpected SurfaceFlinger patch destination: $_sf_dst"
-        return 1
-    fi
-    "$BB" rm -f "$_sf_dst" || return 1
-    "$BB" cp "$_sf_src" "$_sf_dst" || return 1
-    printf '%b' "$_sf_bytes" | "$BB" dd of="$_sf_dst" bs=1 seek="$_sf_offset" count=4 conv=notrunc 2>/dev/null || {
-        "$BB" rm -f "$_sf_dst"
-        echo "ERROR: could not write the guarded SurfaceFlinger patch"
-        return 1
-    }
-    _sf_actual=$(sha256sum "$_sf_dst" 2>/dev/null | cut -d' ' -f1)
-    if [ "$_sf_actual" != "$_sf_output_sha" ]; then
-        "$BB" rm -f "$_sf_dst"
-        echo "ERROR: SurfaceFlinger patch output hash mismatch (expected $_sf_output_sha, got ${_sf_actual:-unreadable})"
-        return 1
-    fi
-    "$BB" chmod 0755 "$_sf_dst" || return 1
-}
-
-# PLK110 ColorOS 17: keep its own 7.3 MB SurfaceFlinger and skip only the QTI
-# extension-client call whose Samsung composer cannot handle. These exact input
-# and output hashes were verified from the user's PLK110 image; unlike the X9U
-# package binary, this one has PLK110's own linker imports and service ABI.
-SESSION_SET=$("$BB" awk -F'"' '$2 == "set" { print $4; exit }' "$STAGE/session/current.json" 2>/dev/null)
-GUEST_SF_PATCHED="$STAGE/surfaceflinger_patched"
-if [ "$SESSION_SET" = "coloros17-plk110-sultra" ]; then
-    GUEST_SF_PATCHED="$STAGE/session/surfaceflinger_patched"
-    if ! oneos_patch_binary "$ROOTFS/system/bin/surfaceflinger" "$GUEST_SF_PATCHED" \
-        46440a04787d42484b134fd2feed559822daa4a93d9428a3f7078616ab57f93c \
-        05d5fc761bf3556d97e59b6185686760545ef0b08847633b550ee03475fbfd5a \
-        4655240 '\023\000\000\024'; then
-        echo "ERROR: PLK110 SurfaceFlinger could not be safely patched; not starting the guest"
-        exit 3
-    fi
-    echo "PLK110 SurfaceFlinger: image-matched QTI composer fallback patch ready (0x470888)"
-fi
-
 # Patched guest surfaceflinger (no Qualcomm composer extension client; see
 # scripts/make-overlays.sh). Inside the container only.
-if [ -f "$GUEST_SF_PATCHED" ] && [ "${ONEOS_STOCK_SF:-0}" != "1" ]; then
-    chmod 755 "$GUEST_SF_PATCHED"
+if [ -f "$STAGE/surfaceflinger_patched" ] && [ "${ONEOS_STOCK_SF:-0}" != "1" ]; then
+    chmod 755 "$STAGE/surfaceflinger_patched"
     $BB umount -l "$ROOTFS/system/bin/surfaceflinger" 2>/dev/null || true
-    $BB mount --bind "$GUEST_SF_PATCHED" "$ROOTFS/system/bin/surfaceflinger"
-    echo "Bound $GUEST_SF_PATCHED -> $ROOTFS/system/bin/surfaceflinger"
+    $BB mount --bind "$STAGE/surfaceflinger_patched" "$ROOTFS/system/bin/surfaceflinger"
+    echo "Bound surfaceflinger_patched -> $ROOTFS/system/bin/surfaceflinger"
 fi
 # Pixel Fold's device state policy without tent mode (scripts/patch-yogi-tent.py):
 # it keeps the cover on until the hinge passes 90 degrees whenever it guesses a
@@ -5919,24 +5872,13 @@ bind_host_app() {
     # and SystemUI crash-looped (no status bar, quick settings or navigation).
     # Then One UI's updated copy (/data/app, the same package and signer), bound
     # over the system one in a private folder.
-    # OEM app folders can put a small resource-only split before the base APK
-    # (PLK110: CaptivePortalLoginGoogle-hdpi.apk was picked first). Check every
-    # candidate so a later valid base APK is not missed.
-    a=""
-    for candidate in "$1"/*.apk; do
-        [ -f "$candidate" ] || continue
-        [ "$($BB head -c 2 "$candidate" 2>/dev/null)" = PK ] || continue
-        [ "$($BB stat -c %s "$candidate" 2>/dev/null || echo 0)" -gt 65536 ] || continue
-        $BB unzip -l "$candidate" AndroidManifest.xml >/dev/null 2>&1 || continue
-        a="$candidate"
-        break
-    done
-    if [ -n "$a" ]; then
+    a=$(ls "$1"/*.apk 2>/dev/null | head -n 1)
+    if [ -n "$a" ] && [ "$($BB head -c 2 "$a" 2>/dev/null)" = PK ] && [ "$($BB stat -c %s "$a" 2>/dev/null || echo 0)" -gt 65536 ] &&
+       $BB unzip -l "$a" AndroidManifest.xml >/dev/null 2>&1; then
         $BB mount --bind "$1" "$2" && echo "Host $(basename "$1") -> $2"
         return 0
     fi
-    first=$(ls "$1"/*.apk 2>/dev/null | head -n 1)
-    echo "!!! host $(basename "$1"): ${first:-no APK} is not a readable base APK ($($BB stat -c %s "$first" 2>/dev/null || echo none) bytes)"
+    echo "!!! host $(basename "$1"): ${a:-no APK} is not a readable APK ($($BB stat -c %s "$a" 2>/dev/null || echo none) bytes)"
     u=""
     [ -n "$3" ] && u=$(ls -d /data/app/*/"$3"-*/base.apk /data/app/"$3"-*/base.apk 2>/dev/null | head -n 1)
     if [ -n "$u" ] && [ "$($BB head -c 2 "$u" 2>/dev/null)" = PK ] && $BB unzip -l "$u" AndroidManifest.xml >/dev/null 2>&1 &&
@@ -6707,45 +6649,5 @@ if [ "$SEXT_MOUNT" = 1 ]; then
         echo "ERROR: could not bind /system/system_ext onto /system_ext; not starting the guest"
         exit 3
     fi
-fi
-# ColorOS's Oplus netd extension registers OplusNetdService from liboplusNetd.so.
-# OneOS shares the phone's Samsung netd, which does not provide that Oplus
-# extension. Hide only the ColorOS image's copy in this guest's mount namespace,
-# matching the known S21 Ultra GSI workaround of renaming it to .bak. system.raw
-# stays read-only and unchanged; an overlay whiteout makes the loader see no .so.
-# Do this after every parent system_ext overlay/bind so they cannot cover the fix.
-hide_oplus_netd_extension() {
-    local lib_dir="$1" abi="$2"
-    local netd_so="$lib_dir/liboplusNetd.so"
-    local overlay="$STAGE/tmp/oneos_oplus_netd_${abi}_$$"
-    [ -d "$lib_dir" ] && [ ! -L "$lib_dir" ] || return 1
-    [ -f "$netd_so" ] || return 0
-    [ ! -L "$netd_so" ] && [ ! -L "$STAGE/tmp" ] && [ ! -e "$overlay" ] && [ ! -L "$overlay" ] || return 1
-    mkdir -p "$STAGE/tmp" "$overlay" || return 1
-    "$BB" mount -t tmpfs -o size=128k,mode=755 tmpfs "$overlay" || return 1
-    "$BB" mount --make-private "$overlay" || return 1
-    mkdir -p "$overlay/lower" "$overlay/upper" "$overlay/work" || return 1
-    chmod 755 "$overlay/lower" "$overlay/upper" "$overlay/work" || return 1
-    "$BB" mount --bind "$lib_dir" "$overlay/lower" || return 1
-    "$BB" mount --make-private "$overlay/lower" || return 1
-    "$BB" mknod "$overlay/upper/liboplusNetd.so" c 0 0 || return 1
-    "$BB" mount -t overlay overlay \
-        -o "ro,lowerdir=$overlay/lower,upperdir=$overlay/upper,workdir=$overlay/work" \
-        "$lib_dir" || return 1
-    echo "Oplus Netd: guest-only $abi/liboplusNetd.so hidden by a read-only overlay; image left unchanged"
-}
-if [ -f "$ROOTFS/system/framework/oplus-services.jar" ]; then
-    NETD_SYSTEM_EXT="$GUEST_SYSTEM_EXT"
-    [ "$SEXT_MOUNT" = 1 ] && NETD_SYSTEM_EXT="$ROOTFS/system_ext"
-    for abi in lib64 lib; do
-        lib_dir="$NETD_SYSTEM_EXT/$abi"
-        netd_so="$lib_dir/liboplusNetd.so"
-        if [ -e "$netd_so" ] || [ -L "$netd_so" ]; then
-            if ! hide_oplus_netd_extension "$lib_dir" "$abi"; then
-                echo "ERROR: could not safely hide ColorOS $abi/liboplusNetd.so from the shared Samsung netd"
-                exit 3
-            fi
-        fi
-    done
 fi
 echo "=== ALL MOUNTS PREPARED SUCCESSFULLY $(date +%T) ==="

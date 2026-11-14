@@ -11,7 +11,6 @@ class PackageSetsTest {
     private val n6 = PackageSets.N6_F8U
     private val pixel = PackageSets.PIXEL_F8U
     private val xin = PackageSets.X9U_IN_SULTRA
-    private val plk = PackageSets.COLOROS17_PLK110_SULTRA
 
     private val x9uWavePayloads = setOf("SystemUI_wave.dex", "OneOSWaveRepack.dex")
 
@@ -32,30 +31,6 @@ class PackageSetsTest {
         assertEquals(setOf("GlobalVerifiedAddons.tar"), customHashes.keys - sharedHashes.keys)
     }
 
-    @Test fun plk110SetUsesOnlyItsImageBuiltColorOsPatches() {
-        assertEquals("out/overlays_plk110", plk.sourceDir)
-        assertEquals(
-            xin.files.filterNot {
-                it.name in setOf(
-                    "surfaceflinger_patched", PackageSets.CELLBROADCAST, "samcam.tar", PackageSets.THEME_STORE_APK,
-                    PackageSets.ODM_AI, "SystemUI_wave.dex", "OneOSWaveRepack.dex",
-                )
-            },
-            plk.files,
-        )
-        assertEquals(Images.ID_COLOROS17_PLK110, plk.imageId)
-        assertFalse(plk.files.any { it.name == "surfaceflinger_patched" })
-        assertFalse(plk.files.any { it.name in x9uWavePayloads })
-        for (name in listOf(PackageSets.CELLBROADCAST, "samcam.tar", PackageSets.THEME_STORE_APK, PackageSets.ODM_AI, "SystemUI_wave.dex", "OneOSWaveRepack.dex")) {
-            assertFalse("PLK110 must not reuse $name", name in plk.names)
-        }
-        val plkHashes = ShaList.parse(shas(plk)).entries
-        val x9Hashes = ShaList.parse(shas(xin)).entries
-        assertTrue("PLK110 services.jar must be rebuilt from its image", plkHashes["services_patched.jar"] != x9Hashes["services_patched.jar"])
-        assertTrue("PLK110 crashrecovery payload must come from its own APEX", plkHashes["crashrecovery_payload.img"] != x9Hashes["crashrecovery_payload.img"])
-        assertTrue(shas(plk).contains("PLK110 has not been tested on the S24 Ultra device"))
-    }
-
     /** The 15 APEX payloads every set carries. */
     private val commonPayloads = listOf(
         "art", "i18n", "runtime", "sdkext", "crashrecovery", "extservices", "permission", "wifi",
@@ -65,21 +40,16 @@ class PackageSetsTest {
 
     @Test
     fun setsAsData() {
-        assertEquals(35, n6.files.size) // Includes PermissionController_patched.apk for the ColorOS 17 runtime permission compatibility fix.
+        assertEquals(34, n6.files.size) // 0.4.63: + oplus_odm_ai.tar; 0.4.47: + KeKeThemeSpace_patched.apk; 0.4.37: + framework_patched.jar, libcamera_client_patched.so, samcam.tar; 0.4.38 (global): + cellbroadcast, Fold8SystemUI.apk, Fold8AngleRelay.dex; 0.4.39: + telephony-common_patched.jar
         assertEquals(43, pixel.files.size) // 0.4.59: OneOSFoldCutout.apk, yogi-services_patched.jar, libbootanimation_preapex_patched.so, OneOSPixelLauncher.apk, OneOSPixelDoze.apk; 0.4.24: framework_patched.jar (One UI's camera transaction codes); 0.4.45: telephony-common_patched.jar; 0.4.47: libcamera_client_patched.so, samcam.tar
         assertEquals(Images.ID_FIND_N6, n6.imageId)
         assertEquals(Images.ID_PIXEL_YOGI, pixel.imageId)
         assertEquals("out/overlays_n6g_r15", n6.sourceDir)
         assertEquals("out/overlays_x9u_in_r70", xin.sourceDir)
         assertEquals(Images.ID_FIND_X9U_IN, xin.imageId)
-        assertEquals("out/overlays_plk110", plk.sourceDir)
-        assertEquals(Images.ID_COLOROS17_PLK110, plk.imageId)
-        assertEquals(27, plk.files.size)
-        assertEquals(479_155_020L, plk.approxBytes)
-        assertFalse(plk.files.any { it.name == "surfaceflinger_patched" })
         assertEquals("out/overlays_pixel_f8u_r17", pixel.sourceDir)
         assertEquals(
-            listOf(PackageSets.N6_GLOBAL_F8, n6, xin, plk, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
+            listOf(PackageSets.N6_GLOBAL_F8, n6, xin, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
                 PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.NOTHING_F8U, PackageSets.OXYGEN16, PackageSets.ORIGINOS),
             PackageSets.ALL,
         )
@@ -235,7 +205,7 @@ class PackageSetsTest {
         // Store).
         val a = ShaList.parse(shas(n6)).entries
         val g = ShaList.parse(shas(xin)).entries
-        assertEquals(25, a.count { (n, h) -> g[n] == h }) // + PermissionController_patched.apk, 0.4.63: + oplus_odm_ai.tar
+        assertEquals(24, a.count { (n, h) -> g[n] == h }) // 0.4.63: + oplus_odm_ai.tar
         for (n in listOf("vold_patched", "service.incremental_patched.so", "surfaceflinger_patched")) assertEquals(n, a[n], g[n])
         // The Pixel set's files are its own but the in-guest app, the same build in every set.
         val c = ShaList.parse(shas(pixel)).entries
@@ -328,9 +298,8 @@ class PackageSetsTest {
         )
         val tether = shas(xin) + "${"a".repeat(64)}  tethering_payload.img\n"
         assertEquals(listOf("x9u-in-sultra: tethering_payload.img is left out of this set"), xin.check(tether).sorted())
-        val firstEntry = shas(xin).lineSequence().first { it.isNotBlank() && !it.startsWith("#") }
-        val dup = shas(xin) + firstEntry + "\n"
-        assertEquals(listOf("${firstEntry.substringAfter("  ")} listed twice"), xin.check(dup))
+        val dup = shas(xin) + shas(xin).lines().first() + "\n"
+        assertEquals(listOf("${shas(xin).lines().first().substringAfter("  ")} listed twice"), xin.check(dup))
     }
 
     @Test
@@ -421,7 +390,7 @@ class PackageSetsTest {
     fun spaceToStage() {
         // AA17: about 27.1 GB for the S Ultra (0.4.51: the X9U IN image + its files + 11 GiB).
         val need = SpaceRule.toStage(Images.FIND_X9U_IN, xin)
-        assertEquals("27.2 GB", Units.bytes(need))
+        assertEquals("27.1 GB", Units.bytes(need))
         // The Pixel image is smaller: its own raw size and files.
         val pixelNeed = SpaceRule.toStage(Images.PIXEL_YOGI, pixel)
         assertEquals(6_559_223_808L + 708_239_363L + 11L * SpaceRule.GIB, pixelNeed)

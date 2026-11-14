@@ -156,7 +156,6 @@ data class PackageSet(
 object PackageSets {
     const val ID_N6_F8U = "n6-f8u"
     const val ID_X9U_IN_SULTRA = "x9u-in-sultra"
-    const val ID_COLOROS17_PLK110_SULTRA = "coloros17-plk110-sultra"
     const val ID_PIXEL_F8U = "pixel-f8u"
     const val ID_PIXEL_F8 = "pixel-f8"
     const val ID_PIXEL_SULTRA = "pixel-sultra"
@@ -226,7 +225,6 @@ object PackageSets {
         PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
         PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
         PackageFile(GUEST_APP, FileRole.GUEST_APP),
-        PackageFile("PermissionController_patched.apk", FileRole.GUEST_FIX),
         PackageFile("ims-ext-common_patched.jar", FileRole.FRAMEWORK_JAR),
         PackageFile("oplus-telephony-common_patched.jar", FileRole.FRAMEWORK_JAR),
         PackageFile("surfaceflinger_patched", FileRole.SURFACEFLINGER),
@@ -257,8 +255,7 @@ object PackageSets {
             // 0.4.63: OPPO's AI engine for the guest's /odm (lock screen depth effect, AI features).
             PackageFile(ODM_AI, FileRole.GUEST_FIX),
         omitted = listOf(TETHERING),
-        // Includes the 26,008,661-byte PermissionController compatibility APK.
-        approxBytes = 815_767_373L,
+        approxBytes = 763_750_051L,
         hasReturnApp = true,
     )
 
@@ -302,30 +299,7 @@ object PackageSets {
             PackageFile("SystemUI_wave.dex", FileRole.GUEST_FIX) +
             PackageFile("OneOSWaveRepack.dex", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, WALLPAPER_GRID_RRO),
-        approxBytes = 670_534_416L,
-        hasReturnApp = true,
-    )
-
-    /** PLK110 GSI overlays rebuilt from its pinned system image; its SurfaceFlinger is produced at session start. */
-    val COLOROS17_PLK110_SULTRA = PackageSet(
-        id = ID_COLOROS17_PLK110_SULTRA,
-        imageId = Images.ID_COLOROS17_PLK110,
-        sourceDir = "out/overlays_plk110",
-        files = COMMON.filterNot { it.name == "surfaceflinger_patched" } + listOf(
-            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
-            PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR),
-            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
-        ),
-        omitted = listOf(
-            TETHERING,
-            "surfaceflinger_patched",
-            WALLPAPER_GRID_RRO,
-            "OneOSTabletQs.apk",
-            "OneOSFoldCutout.apk",
-            "oneos-apex-requires.txt",
-            "plk110-overlays.sha256",
-        ),
-        approxBytes = 479_155_020L, // Sum of the 27 published PLK110 package files.
+        approxBytes = 644_525_755L,
         hasReturnApp = true,
     )
 
@@ -736,7 +710,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, COLOROS17_PLK110_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16, ORIGINOS)
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16, ORIGINOS)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

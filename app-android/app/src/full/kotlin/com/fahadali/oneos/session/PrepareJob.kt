@@ -8,7 +8,6 @@ import com.fahadali.oneos.core.model.Finding
 import com.fahadali.oneos.core.model.GatePhase
 import com.fahadali.oneos.core.model.Hashes
 import com.fahadali.oneos.core.model.ImageIdentifier
-import com.fahadali.oneos.core.model.ImageInputFormat
 import com.fahadali.oneos.core.model.ImageRef
 import com.fahadali.oneos.core.model.Images
 import com.fahadali.oneos.core.model.InstalldTableFormat
@@ -19,7 +18,6 @@ import com.fahadali.oneos.core.model.PlainMessage
 import com.fahadali.oneos.core.model.Profiles
 import com.fahadali.oneos.core.model.SessionEnv
 import com.fahadali.oneos.core.model.Units
-import com.fahadali.oneos.core.model.ZipImageStream
 import com.fahadali.oneos.core.root.RootProbe
 import com.fahadali.oneos.core.root.RootScript
 import com.fahadali.oneos.core.root.RootShell
@@ -37,12 +35,11 @@ import java.util.zip.GZIPInputStream
  * again, publishes that check (so Switch and Home show it, not an older one),
  * picks what to do with the stage when the caller did not ([SetupPlan]: keep
  * the same system's apps and data, set another one aside, reuse the system
- * already installed when root vouches for it), hashes the picked .img or
- * compressed archive itself when Check file has not (and always rechecks a
- * ZIP archive), then streams it to root and verifies the pinned image before
- * using its patch set, then the root script's verbs in
+ * already installed when root vouches for it), hashes the picked .img or .img.gz
+ * itself when Check file has not, then streams it to root (unpacking gzip on
+ * the fly) and verifies the pinned image before using its patch set, then the root script's verbs in
  * order: begin (stage adopted, moved aside or new), the image (the picked
- * archive unpacked on the fly into `receive system.raw`, or `keep-raw` for the
+ * .gz unpacked on the fly into `receive system.raw`, or `keep-raw` for the
  * image already on this phone), every session script and file of the
  * image's set on this phone, the installd table, session.env, finish (files
  * list, attic, marker), and a fresh read of the stage, published too. The
@@ -300,15 +297,13 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         if (onPhone && mode != RootScript.BeginMode.KEEP) throw Stop("The image already on this phone can only be used when the stage is kept.")
 
         // Sizes for the progress: the hash (when needed), the image, the files.
+        val hashNeeded = !onPhone && picked != null && picked.sha256 == null
         val pickedSize = picked?.check?.let { it.hashedBytes ?: it.bytes }
-        val pickedIsRawImage = candidate != null && pickedSize == candidate.rawBytes
-        val hashNeeded = !onPhone && picked != null &&
-            (picked.sha256 == null || (candidate?.inputFormat == ImageInputFormat.ZIP && !pickedIsRawImage))
         var imageFileBytes = candidate?.let { if (pickedSize == it.rawBytes) it.rawBytes else it.gzBytes } ?: pickedSize ?: 0L
         val set0 = candidate?.let { i -> profile.choice(i.id)?.packageSetId?.let { PackageSets.byId(it) } }
         update(state.copy(bytesTotal = (if (hashNeeded) imageFileBytes else 0L) + (if (onPhone) 0L else imageFileBytes) + (set0?.approxBytes ?: 0L)))
 
-        // 2. "Check the download": hash when needed; re-read ZIP archives to refresh their pin, but avoid an extra pass over raw images.
+        // 2. "Check the download": the picked .gz hashed here when Check file did not, so the identity gate can pass.
         var base = 0L
         if (hashNeeded) {
             val p = picked
@@ -443,12 +438,8 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         } else {
             val uri = picked?.uri ?: throw Stop("Pick the image first.")
             val imageBase = base
-            step(Step.IMAGE, when {
-                rawImageFile -> "Writing the image…"
-                image.inputFormat == ImageInputFormat.ZIP -> "Unpacking the verified ZIP…"
-                else -> "Unpacking the download…"
-            })
-            update(state.copy(stepTotal = if (image.inputFormat == ImageInputFormat.ZIP && !rawImageFile) image.rawBytes else imageFileBytes))
+            step(Step.IMAGE, if (rawImageFile) "Writing the image…" else "Unpacking the download…")
+            update(state.copy(stepTotal = imageFileBytes))
             if (rawImageFile) {
                 val feed = RawImageFeed(app, uri, image) { raw ->
                     bytes(imageBase, raw, stepDone = raw) { "${Units.bytes(raw)} of ${Units.bytes(image.rawBytes)}" }
@@ -458,19 +449,10 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
                     silenceMs = 15 * 60_000L, totalMs = 3 * 60 * 60_000L,
                 )
                 feed.problem()?.let { throw Stop("The image: $it") }
-            } else if (image.inputFormat == ImageInputFormat.ZIP) {
-                val feed = ZipImageFeed(app, uri, image) { archive, raw ->
-                    bytes(imageBase, archive, stepDone = raw) { "${Units.bytes(raw)} of ${Units.bytes(image.rawBytes)}" }
-                }
-                verb(
-                    app, Step.IMAGE, RootScript.Verb.RECEIVE, listOf(RootScript.RAW_NAME, image.rawBytes.toString(), image.rawSha256), feed,
-                    silenceMs = 15 * 60_000L, totalMs = 3 * 60 * 60_000L,
-                )
-                feed.problem()?.let { throw Stop("The image: $it") }
             } else {
                 val feed = ImageFeed(app, uri, image) { gz ->
                     // In Double: gz * rawBytes passes Long's range after about 1.2 GB of
-                    // a large compressed image, and the label showed wrong sizes and "?" (2026-10-25).
+                    // a large image's .gz, and the label showed wrong sizes and "?" (2026-10-25).
                     bytes(imageBase, gz, stepDone = gz) {
                         "${Units.bytes((gz.toDouble() / image.gzBytes * image.rawBytes).toLong())} of ${Units.bytes(image.rawBytes)}"
                     }
@@ -622,25 +604,6 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
             rawSha256 != image.rawSha256 -> "the .img SHA-256 differs"
             else -> null
         }
-    }
-
-    /** A ZIP whose only member is the exact, pinned ext4 `system.img`. */
-    private class ZipImageFeed(
-        private val app: Context,
-        private val uri: Uri,
-        private val image: ImageRef,
-        private val progress: (archiveBytes: Long, rawBytes: Long) -> Unit,
-    ) : RootShell.Feed {
-        private var result: ZipImageStream.Result? = null
-
-        override fun write(out: OutputStream) {
-            val input = app.contentResolver.openInputStream(uri) ?: throw IOException("cannot open the picked ZIP")
-            input.use { source ->
-                result = ZipImageStream.copy(source, out, image, { cancelled }, progress)
-            }
-        }
-
-        fun problem(): String? = if (result == null) "the ZIP was not fully verified" else null
     }
 
     /**

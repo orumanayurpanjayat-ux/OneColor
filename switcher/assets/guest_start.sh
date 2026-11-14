@@ -113,34 +113,7 @@ export TMPDIR=/data/local/tmp
 DERIVE=/apex/com.android.sdkext/bin/derive_classpath
 CLASSPATH_FILE=/data/system/environ/classpath
 mkdir -p /data/system/environ
-normalize_guest_classpath_file() {
-    local file="$1" normalized="${1}.oneos.$$"
-    [ -f "$file" ] && [ ! -L "$file" ] || return 1
-    if ! grep -qF '/system/system_ext/' "$file"; then
-        return 0
-    fi
-    if sed 's#/system/system_ext/#/system_ext/#g' "$file" > "$normalized" &&
-       [ -s "$normalized" ] && chmod 0644 "$normalized" &&
-       mv -f "$normalized" "$file"; then
-        return 0
-    fi
-    rm -f "$normalized"
-    return 1
-}
 if [ -x "$DERIVE" ] && "$DERIVE" "$CLASSPATH_FILE" > /data/derive_classpath.log 2>&1; then
-    # The ColorOS GSI stores system_ext below /system/system_ext, then
-    # guest_prepare.sh bind-mounts that tree at /system_ext. ART's default
-    # linker namespace permits /system_ext/framework but rejects the nested
-    # spelling (PLK110 warned that its AndroidX framework odex files were
-    # inaccessible). Keep classpath and odex resolution on the permitted path.
-    if grep -qF '/system/system_ext/' "$CLASSPATH_FILE"; then
-        if normalize_guest_classpath_file "$CLASSPATH_FILE"; then
-            echo "[Pivoted Root] Guest class paths: normalized system_ext entries to the ART-permitted /system_ext mount"
-        else
-            echo "[Pivoted Root] ERROR: could not normalize system_ext class paths for ART's linker namespace"
-            exit 3
-        fi
-    fi
     while read -r kw name value; do
         [ "$kw" = "export" ] && [ -n "$name" ] && export "$name=$value"
     done < "$CLASSPATH_FILE"
@@ -331,15 +304,9 @@ CD=/data/oneos_composer_before_sf.log
     # debug (HIDL only); one named service, bounded.
     timeout 5 dumpsys android.hardware.graphics.composer3.IComposer/default 2>&1 | head -n 400 ||
         echo "dumpsys of the composer: no answer in 5 s"
-    if service check android.hardware.graphics.composer3.IComposer/default 2>/dev/null | grep -q ': found'; then
-        echo "lshal debug: skipped (AIDL composer; lshal only debugs HIDL services)"
-    elif command -v lshal >/dev/null 2>&1; then
-        hidl=$(timeout 5 lshal list -i 2>/dev/null | grep -oE 'android\.hardware\.graphics\.composer@[0-9.]+::IComposer/default' | head -n 1)
-        if [ -n "$hidl" ]; then
-            timeout 5 lshal debug "$hidl" 2>&1 || echo "lshal debug: no answer in 5 s"
-        else
-            echo "lshal debug: no HIDL composer service"
-        fi
+    if command -v lshal >/dev/null 2>&1; then
+        timeout 5 lshal debug android.hardware.graphics.composer3.IComposer/default 2>&1 ||
+            echo "lshal debug: no answer in 5 s"
     else
         echo "no lshal in this image"
     fi
@@ -1523,8 +1490,7 @@ fi
 # odrefresh in the running guest built its boot image in 10 s; a guest tool
 # then started on 0.05 s of CPU instead of 0.26 s. The odrefresh step below
 # builds that boot image; without one ART compiles the boot class path in
-# memory, as with the flag. Keep that slower mode off normally; after the
-# guest app_process itself receives SIGABRT, allow one guarded JIT retry below.
+# memory, as with the flag.
 case "${ONEOS_GUEST_JIT_ZYGOTE:-}" in
     0|1) JIT_WHY="ONEOS_GUEST_JIT_ZYGOTE=$ONEOS_GUEST_JIT_ZYGOTE" ;;
     *)
@@ -1532,16 +1498,6 @@ case "${ONEOS_GUEST_JIT_ZYGOTE:-}" in
         ONEOS_GUEST_JIT_ZYGOTE=0; JIT_WHY="default" ;;
 esac
 export ONEOS_GUEST_JIT_ZYGOTE
-case "${ONEOS_GUEST_JIT_ABORT_FALLBACK:-}" in
-    0|1) ;;
-    *)
-        if [ -f /system/framework/oplus-services.jar ]; then
-            ONEOS_GUEST_JIT_ABORT_FALLBACK=1
-        else
-            ONEOS_GUEST_JIT_ABORT_FALLBACK=0
-        fi ;;
-esac
-export ONEOS_GUEST_JIT_ABORT_FALLBACK
 if [ "$ONEOS_GUEST_JIT_ZYGOTE" = 1 ]; then
     echo "[Pivoted Root] zygote: -Xforcejitzygote ($JIT_WHY): boot class path compiled in memory, framework JIT only"
 else
@@ -1564,6 +1520,7 @@ else
         echo "[Pivoted Root] zygote: the image's boot image ($JIT_WHY): $BOOT_OATS oat files in /system/framework/arm64, no updated ART or i18n module in /apex/apex-info-list.xml"
     fi
 fi
+
 echo "[Pivoted Root] Cleaning stale sockets..."
 rm -f /dev/socket/zygote /dev/socket/usap_pool_primary 2>/dev/null || true
 
@@ -2701,34 +2658,9 @@ if [ -f "$WAVE_APK" ]; then
 fi
 
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
-# Keep app_process64's stdout/stderr for the next session report. The native
-# launcher opens this file with O_NOFOLLOW and mode 0600; it falls back to the
-# already-captured takeover.log if this guest-data file is unavailable.
-ZYGOTE_LOG=/data/zygote_exec.log
-if [ -L "$ZYGOTE_LOG" ]; then $BB rm -f "$ZYGOTE_LOG" 2>/dev/null; fi
-if [ -e "$ZYGOTE_LOG" ] && [ ! -f "$ZYGOTE_LOG" ]; then
-    echo "[Pivoted Root] Zygote startup log path is not a regular file; launcher will keep takeover.log stderr"
-else
-    (umask 077; : > "$ZYGOTE_LOG") 2>/dev/null && chmod 600 "$ZYGOTE_LOG" 2>/dev/null || \
-        echo "[Pivoted Root] Could not prepare zygote startup log; launcher will keep takeover.log stderr"
-fi
 if [ -f /data/oneos_root/enabled ]; then
     /system/bin/sh /data/oneos_runtime.sh pre || exit 3
     /system/bin/sh /data/oneos_runtime.sh late > /data/adb/oneos/run/late.log 2>&1 &
     exec /data/adb/oneos/bin/su --launch
 fi
-/data/zygote_exec &
-ZYGOTE_PID=$!
-wait "$ZYGOTE_PID"
-ZYGOTE_EXIT=$?
-if [ "$ZYGOTE_EXIT" = 134 ] && [ "$ONEOS_GUEST_JIT_ZYGOTE" != 1 ] &&
-   [ "$ONEOS_GUEST_JIT_ABORT_FALLBACK" = 1 ] &&
-   ! pidof zygote64 >/dev/null 2>&1 && ! pidof system_server >/dev/null 2>&1; then
-    echo "[Pivoted Root] guest app_process aborted with status 134 (SIGABRT); retrying once with -Xforcejitzygote"
-    ONEOS_GUEST_JIT_ZYGOTE=1 /data/zygote_exec &
-    ZYGOTE_PID=$!
-    wait "$ZYGOTE_PID"
-    ZYGOTE_EXIT=$?
-fi
-echo "[Pivoted Root] guest zygote launcher pid $ZYGOTE_PID exited with status $ZYGOTE_EXIT (wait status may encode a signal)"
-exit "$ZYGOTE_EXIT"
+exec /data/zygote_exec
