@@ -2,7 +2,7 @@
 
 Generated from the app's phone list (`ImageGuide`); `ImageGuideTest` keeps it in step. Download only the `.gz` of a system your phone is listed under, then pick it in OneOS. OneOS checks the file's SHA-256 before it uses it.
 
-Downloads: each system's own link below (the SourceForge mirror, resumable); all of them are also in the Google Drive folder https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNEsUv
+Downloads: hosted images have a resumable SourceForge link and are also in the Google Drive folder https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNEsUv. Locally provided images have no download link; transfer the file to the phone and pick it in OneOS.
 
 ## ColorOS 17, Find N6 global build
 
@@ -18,9 +18,9 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
 
 ## ColorOS 17, Find X9 Ultra IN build
 
-- File: `OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz` (7.07 GB)
-- SHA-256: `c2eadd7e4ca2a136a91aa28f806fd99498b829d45929ff3d6fb6865d66f89bab`
-- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz/download
+- File: `edita.img.gz` (6.59 GB)
+- SHA-256: `48fcddeb9de9bbdb8e7b80a73e85c63628f16e96f3e6e03130203107fed3f125`
+- Download: local file only; transfer `edita.img.gz` to the phone and pick it in OneOS.
 - Phones:
   - Galaxy S26 Ultra (SM-S948, SM8850)
   - Galaxy S25 Ultra (SM-S938, SM8750)

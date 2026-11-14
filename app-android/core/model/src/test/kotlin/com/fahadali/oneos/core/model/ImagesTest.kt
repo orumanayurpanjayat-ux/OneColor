@@ -101,13 +101,15 @@ class ImagesTest {
         assertEquals(6_067_867_648L - (1L shl 32), nothing.gzIsize)
         // 0.4.11: the Find X9 Ultra IN build is back (0.3.3-0.3.6, dropped in 0.3.7); 0.4.38: rebuilt without the debloat.
         assertEquals("coloros17-findx9u-in", xin.id)
-        assertEquals("OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz", xin.gzName)
-        assertEquals(7_071_596_999L, xin.gzBytes)
-        assertEquals("c2eadd7e4ca2a136a91aa28f806fd99498b829d45929ff3d6fb6865d66f89bab", xin.gzSha256)
+        assertEquals("edita.img.gz", xin.gzName)
+        assertEquals(6_585_505_221L, xin.gzBytes)
+        assertEquals("48fcddeb9de9bbdb8e7b80a73e85c63628f16e96f3e6e03130203107fed3f125", xin.gzSha256)
         assertEquals(14_669_168_640L, xin.rawBytes)
-        assertEquals("92c7cd8485dd6ef80d1f5c734ea13a8744510c15b77a18471eb11078df84ddb6", xin.rawSha256)
+        assertEquals("6f57f91f44dd8783ac4752dd5287da11b68e128a5ce2b2a67317d4f8d62c5e85", xin.rawSha256)
+        assertEquals(null, xin.downloadUrl)
+        assertEquals(null, xin.mirrorUrl)
         assertEquals(null, xin.testedOn)
-        assertEquals(xin, Images.byGzSize(7_071_596_999L))
+        assertEquals(xin, Images.byGzSize(6_585_505_221L))
         assertEquals(xin, Images.byRawSize(14_669_168_640L))
         assertEquals("Find X9 Ultra IN", Images.shortName(xin.id))
         // 0.4.51: the debloated Find X9 Ultra build is retired; a retired image's name stays known (old stages,
@@ -214,7 +216,7 @@ class ImagesTest {
         assertEquals(Level.BLOCK, n6OnS26.finding.level)
         // The BLOCK names every image the phone takes.
         assertEquals(
-            "This is the Find N6 image; Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) " +
+            "This is the Find N6 image; Galaxy S26 Ultra takes the Find X9 Ultra IN image (edita.img.gz) " +
                 "or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
                 "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
                 "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz) or the OriginOS 7 image (OneOS_OriginOS7_PD2609MA.img.gz).",
@@ -328,7 +330,7 @@ class ImagesTest {
             ImageIdentifier.accepts(Profiles.F8U),
         )
         assertEquals(
-            "Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) " +
+            "Galaxy S26 Ultra takes the Find X9 Ultra IN image (edita.img.gz) " +
                 "or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
                 "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
                 "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz) or the OriginOS 7 image (OneOS_OriginOS7_PD2609MA.img.gz)",
@@ -375,7 +377,7 @@ class ImagesTest {
         assertTrue(cnOnFold.finding.detail.contains("Find X9 Ultra IN image; Z Fold (F8U) takes the Find N6 image"))
         val n6OnS26 = staged(n6.rawBytes, n6.rawSha256, Profiles.S_ULTRA_8850)
         assertEquals(ImageState.WRONG_FOR_PHONE, n6OnS26.state)
-        assertTrue(n6OnS26.finding.detail, n6OnS26.finding.detail.contains("Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) or the Pixel 11 Pro image"))
+        assertTrue(n6OnS26.finding.detail, n6OnS26.finding.detail.contains("Galaxy S26 Ultra takes the Find X9 Ultra IN image (edita.img.gz) or the Pixel 11 Pro image"))
         val pixelOnS26 = staged(pixel.rawBytes, pixel.rawSha256, Profiles.S_ULTRA_8850)
         assertEquals(ImageState.WRONG_FOR_PHONE, pixelOnS26.state)
         assertEquals(pixel, pixelOnS26.image)

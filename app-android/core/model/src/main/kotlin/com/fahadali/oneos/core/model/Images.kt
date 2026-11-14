@@ -67,14 +67,9 @@ data class ImageRef(
     val presentsGms: Boolean = false,
     /** Whose system it is: its guest data is kept only for an image of the same family. */
     val family: SystemFamily,
+    /** Direct resumable mirror for published files; null when the image is provided locally. */
+    val mirrorUrl: String? = "${Images.MIRROR_FILES_URL}$gzName/download",
 ) {
-    /**
-     * The image's own download on the SourceForge mirror (0.4.59, project oneos-mirror, folder
-     * images/): one file, resumable, from a mirror near the user. [downloadUrl] (the Drive
-     * folder) stays the fallback.
-     */
-    val mirrorUrl: String get() = "${Images.MIRROR_FILES_URL}$gzName/download"
-
     /**
      * A launch may hide Google services (`ONEOS_GUEST_HIDE_GMS=1`, [SessionEnv],
      * root's `IMAGES_GMS`): the image has them and its sessions do not present them.
@@ -99,10 +94,9 @@ data class ImageRef(
 }
 
 /**
- * The built-in image table. Sizes and hashes verified on the server on
- * 2026-10-22 (the Pixel 11 Fold image on 2026-10-24): the gunzip of each
- * upload is byte-identical to the server image. 0.3.7 dropped the Find X9
- * Ultra IN build (`coloros17-findx9u-in`); 0.4.11 takes it again.
+ * The built-in image table. Public image uploads were checked at their source;
+ * the locally provided Find X9 Ultra IN edit uses the owner's supplied hashes.
+ * 0.3.7 dropped the Find X9 Ultra IN build (`coloros17-findx9u-in`); 0.4.11 takes it again.
  */
 object Images {
     /**
@@ -164,13 +158,9 @@ object Images {
     )
 
     /**
-     * The global (India) build of the same phone, back in 0.4.11 (0.3.3-0.3.6
-     * took it; 0.3.7 dropped it when its server build was deleted for space):
-     * Google's mainline modules, Play services and the Play Store in
-     * my_product (owner: "IN build is just better"; friends run it). The
-     * upload of 2026-10-25 is the 0.3.3 file, byte for byte. 0.4.38: rebuilt
-     * from the same OTA (CPH2841IN) without MysticGSI's debloat, like the
-     * Find N6 build (UMS, Aod, Metis kept: the Dynamic Island, Live Alerts).
+     * The Find X9 Ultra global/India build. The local `edita.img.gz` file is
+     * the owner's edited copy of that image; it keeps this image identity and
+     * reuses its existing `x9u-in-sultra` package set and overlays.
      */
     val FIND_X9U_IN = ImageRef(
         id = ID_FIND_X9U_IN,
@@ -179,19 +169,20 @@ object Images {
         name = "ColorOS 17",
         variant = "global build",
         blurb = "OPPO's global system from the Find X9 Ultra, with Google Play, Live Alerts and the Dynamic Island.",
-        downloadUrl = SHARED_FOLDER_URL,
+        downloadUrl = null,
         sdk = 37,
         buildId = "CP2A.260605.016",
-        gzName = "OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz",
-        gzBytes = 7_071_596_999L,
-        gzSha256 = "c2eadd7e4ca2a136a91aa28f806fd99498b829d45929ff3d6fb6865d66f89bab",
+        gzName = "edita.img.gz",
+        gzBytes = 6_585_505_221L,
+        gzSha256 = "48fcddeb9de9bbdb8e7b80a73e85c63628f16e96f3e6e03130203107fed3f125",
         rawBytes = 14_669_168_640L,
-        rawSha256 = "92c7cd8485dd6ef80d1f5c734ea13a8744510c15b77a18471eb11078df84ddb6",
+        rawSha256 = "6f57f91f44dd8783ac4752dd5287da11b68e128a5ce2b2a67317d4f8d62c5e85",
         testedOn = null,
         cpuRequired = emptyList(),
         cpuUsedByApps = listOf("sve2", "sme"),
         googleServices = true,
         family = SystemFamily.COLOROS,
+        mirrorUrl = null,
     )
 
     /**

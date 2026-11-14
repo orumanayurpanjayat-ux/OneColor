@@ -646,7 +646,9 @@ class SystemsFragment : Fragment() {
         val primary = v.findViewById<Button>(R.id.systems_primary)
         v.findViewById<View>(R.id.systems_more).setOnClickListener { anchor ->
             androidx.appcompat.widget.PopupMenu(ctx, anchor).apply {
-                menu.add(R.string.systems_download).setOnMenuItemClickListener { activity?.let { SystemsNav.open(it, image.mirrorUrl) }; true }
+                image.mirrorUrl?.let { url ->
+                    menu.add(R.string.systems_download).setOnMenuItemClickListener { activity?.let { SystemsNav.open(it, url) }; true }
+                }
                 image.downloadUrl?.let { drive ->
                     menu.add(R.string.systems_download_drive).setOnMenuItemClickListener { activity?.let { SystemsNav.open(it, drive) }; true }
                 }
@@ -740,7 +742,7 @@ class SystemsFragment : Fragment() {
                 else a.choose(image.id)
             }
             .setNegativeButton(R.string.setup_download_no) { _, _ ->
-                SystemsNav.open(a, image.mirrorUrl)
+                image.mirrorUrl?.let { SystemsNav.open(a, it) } ?: a.choose(image.id)
             }
             .setNeutralButton(android.R.string.cancel, null).show()
     }
