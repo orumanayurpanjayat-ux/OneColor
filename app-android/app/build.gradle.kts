@@ -311,6 +311,19 @@ abstract class OneOsFilesTask : DefaultTask() {
                     remote[sum] = ids.getValue(sum)
                     continue
                 }
+                // guards.txt is also checked in beside this set's manifest. Keep that small, validated
+                // safety manifest in the APK when a newly refreshed guard file has not been published
+                // as a remote overlay asset yet; the much larger patched payloads remain remote.
+                if (!pack && n == "guards.txt" && ids[sum] == null) {
+                    val checkedIn = if (f.isFile) f else File(packages.get().asFile, "$id.guards.txt")
+                    when {
+                        !checkedIn.isFile -> problems += "$n is missing from $dir and packages/$id.guards.txt"
+                        checkedIn.length() > receiveMax -> problems += "$n is ${checkedIn.length()} bytes, over root's receive limit ($receiveMax)"
+                        sha(checkedIn) != sum -> problems += "$n differs from packages/$id.sha256 (a rebuilt guard manifest?)"
+                        else -> put(checkedIn, sum)
+                    }
+                    continue
+                }
                 when {
                     n in omitted -> problems += "$n is listed but left out of $id"
                     !f.isFile -> problems += "$n is missing from $dir"
