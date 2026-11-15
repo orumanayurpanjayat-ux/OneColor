@@ -545,8 +545,10 @@ object PackageSets {
             PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
             PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
             PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
-            // 0.4.37: SurfaceFlinger with the mode group read whole (patches/hyperos_sf_group.py).
-            PackageFile("libsurfaceflinger_patched.so", FileRole.GUARD_LIBRARY),
+            // 0.4.37: SurfaceFlinger with the mode group read whole (patches/hyperos_sf_group.py). The
+            // patcher runs outside make-overlays.sh (the r29 build carries the r28 file), so the set's
+            // guards.txt does not pin it.
+            PackageFile("libsurfaceflinger_patched.so", FileRole.GUEST_FIX),
             PackageFile("guards.txt", FileRole.GUARDS),
             PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
             PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),

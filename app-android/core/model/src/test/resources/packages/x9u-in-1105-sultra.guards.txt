@@ -3,6 +3,7 @@
 # framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
 # telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
+# oplus-framework_patched.jar: outgoing calls over IMS where the carrier asks for VoLTE provisioning (patches/oplus_ims_provision.py; Samsung's IMS answers 0), 0.5.05
 5e361d3aeeaf4d70705c2eaa626d44e61f5d3b12a296713b38886f3263f69b9f  services_patched.jar
 9fcaf57457d45a27226ad2bbb5753a7963ab1f2093cf832bfc79660194eaadf9  oplus-services_patched.jar
 9db563d25f5afd9a205e726da2e525933f6c86b1e5ca40fa0dfdc82350e01722  vold_patched

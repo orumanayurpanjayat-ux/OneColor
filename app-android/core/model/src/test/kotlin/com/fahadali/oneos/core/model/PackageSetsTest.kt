@@ -91,14 +91,14 @@ class PackageSetsTest {
         // framework.jar and the guest vold (r7), the native camera client (r10), the 15 common payloads and bt.
         val hyper = PackageSets.HYPER_F8U
         assertEquals(Images.ID_HYPEROS_LHASA, hyper.imageId)
-        assertEquals("out/overlays_hyperos_r28", hyper.sourceDir)
-        assertEquals(39, hyper.files.size) // 0.4.38: + libsurfaceflinger_patched.so; 0.4.59: + telephony, two cameras; 0.4.70: + xiaomi-opt-telephony_patched.jar
-        assertEquals(listOf("socket_exec", "libaudiohal_aidl_patched.so", "MiWallpaper_patched.apk", "samcam.tar", "samcam_bar.tar"),
+        assertEquals("out/overlays_hyperos_r29", hyper.sourceDir)
+        assertEquals(41, hyper.files.size) // 0.4.38: + libsurfaceflinger_patched.so; 0.4.59: + telephony, two cameras; 0.4.70: + xiaomi-opt-telephony_patched.jar; 0.5.13 r29: + miui-framework_patched.jar, facehal_payload.tar
+        assertEquals(listOf("libsurfaceflinger_patched.so", "socket_exec", "libaudiohal_aidl_patched.so", "MiWallpaper_patched.apk", "samcam.tar", "samcam_bar.tar", "facehal_payload.tar"),
             hyper.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
         assertEquals(
-            listOf("services_patched.jar", "miui-services_patched.jar", "apprecovery.proinstaller_patched.jar", "framework_patched.jar",
+            listOf("services_patched.jar", "miui-services_patched.jar", "miui-framework_patched.jar", "apprecovery.proinstaller_patched.jar", "framework_patched.jar",
                 "miui-wifi-service_patched.jar", "miui-telephony-common_patched.jar", "vold_patched", "service.incremental_patched.so",
-                "libcamera_client_patched.so", "libsurfaceflinger_patched.so", "telephony-common_patched.jar"),
+                "libcamera_client_patched.so", "telephony-common_patched.jar"),
             hyper.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(hyper.hasReturnApp && "vold_patched" in hyper.names)
@@ -203,7 +203,10 @@ class PackageSetsTest {
         // fold's (the wallpaper grid, the Fold8 SystemUI and its hinge relay), with its own guest vold as gvld.
         // 0.4.97 (r72) / 0.4.98: both carry their own ColorPanoramicSystemUI.apk.
         // 0.5.05: and oplus-framework_patched.jar, which the older X9U set does not get.
-        assertEquals((n6.names - PackageSets.WALLPAPER_GRID_RRO - "Fold8SystemUI.apk" - "Fold8AngleRelay.dex" - "oplus-framework_patched.jar").toSet(), xin.names.toSet())
+        // OneOS: the X9U set also carries the fingerprint wave (SystemUI_wave.dex, OneOSWaveRepack.dex);
+        // the Fold's ColorOS set keeps its own.
+        assertEquals((n6.names - PackageSets.WALLPAPER_GRID_RRO - "Fold8SystemUI.apk" - "Fold8AngleRelay.dex" - "oplus-framework_patched.jar").toSet(),
+            (xin.names - "SystemUI_wave.dex" - "OneOSWaveRepack.dex").toSet())
         // 0.4.47: the global builds' Theme Store without its brand check, the same file in both sets.
         assertEquals(ShaList.parse(shas(n6)).entries[PackageSets.THEME_STORE_APK], ShaList.parse(shas(xin)).entries[PackageSets.THEME_STORE_APK])
         assertEquals(FileRole.GUEST_FIX, n6.file(PackageSets.THEME_STORE_APK)?.role)
