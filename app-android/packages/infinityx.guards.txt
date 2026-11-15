@@ -13,7 +13,7 @@
 # 0.4.63: services_patched.jar + guest_pdb_init_survives.py (the PDB start task survives a failed FRP deactivation: no init timeout)
 # 0.5.00: services_patched.jar + guest_pdb_frp_writes_fail.py (with One UI's FRP active a guest PDB write fails as an I/O error instead of killing system_server's main thread: no black screen at the first start)
 # 0.5.01: framework_patched.jar + guest_secims_ready.py (Samsung IMS hears telephony is ready for a call's callbacks once telephony attaches to the session: calls end in the guest)
-0f520c326ec0cf8175194b788d2df8d462bdda1680e14cc3b61b11e14179cea7  services_patched.jar
+f1fb4bf7edb5e427007f58a7495364cdd8d7c1ab389bc2bdb1129670fea68693  services_patched.jar
 efeff31c080f7d92c2713fe7d7df79b95c149c9db47426a702f212e86fb28389  oplus-services_patched.jar
 654dcfa788bcfde4fc539935ffbcb707a3b0c2001e31b6de27edec5afe5de404  vold_patched
 d853cfa2f60c477a5c5224cf9972665f09a733fa66e659d71f43d521589fceb7  service.incremental_patched.so
@@ -21,3 +21,4 @@ d853cfa2f60c477a5c5224cf9972665f09a733fa66e659d71f43d521589fceb7  service.increm
 1ba6a3b21d5321b225e93d93d024332936e339e5002a082f98e6e7a51c9449bd  libcamera_client_patched.so
 f91a0e15d5d21c7476258b058264b24cf5dc1788b555a43c64629f50bcfd0038  telephony-common_patched.jar
 # r17 (0.5.16): services_patched.jar + guest_pdb_frp_inactive.py (the guest's PDB reports FRP inactive, FLASH_UNLOCKED and no credential handle: SetupWizard skips the old-PIN page)
+# r18 (0.5.16): services_patched.jar + guest_local_lock.py (the guest's own screen lock; an AOSP doVerifyCredential wrapper is hooked at doVerifyCredentialInner)
