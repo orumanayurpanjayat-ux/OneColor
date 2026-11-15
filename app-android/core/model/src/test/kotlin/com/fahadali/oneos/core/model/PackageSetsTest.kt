@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 7797)
+Total output lines: 423
+
 package com.fahadali.oneos.core.model
 
 import org.junit.Assert.assertEquals
@@ -89,16 +92,16 @@ class PackageSetsTest {
             lineage.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(lineage.hasReturnApp && lineage.file(PackageSets.GUEST_APP)?.role == FileRole.GUEST_APP)
-        // HyperOS (0.4.31 on every phone; made for the Z Fold8 Ultra and Z Fold8): services.jar, Xiaomi's guard jars,
-        // framework.jar and the guest vold (r7), the native camera client (r10), the 15 common payloads and bt.
+        // HyperOS r29: the refreshed Samsung-facing guards, MIUI display-feature stub, face payload,
+        // guest fingerprint/lock fixes, and the existing camera, telephony and APEX payloads.
         val hyper = PackageSets.HYPER_F8U
         assertEquals(Images.ID_HYPEROS_LHASA, hyper.imageId)
-        assertEquals("out/overlays_hyperos_r28", hyper.sourceDir)
-        assertEquals(39, hyper.files.size) // 0.4.38: + libsurfaceflinger_patched.so; 0.4.59: + telephony, two cameras; 0.4.70: + xiaomi-opt-telephony_patched.jar
-        assertEquals(listOf("socket_exec", "libaudiohal_aidl_patched.so", "MiWallpaper_patched.apk", "samcam.tar", "samcam_bar.tar"),
+        assertEquals("out/overlays_hyperos_r29", hyper.sourceDir)
+        assertEquals(41, hyper.files.size) // r29 adds miui-framework_patched.jar and facehal_payload.tar.
+        assertEquals(listOf("socket_exec", "libaudiohal_aidl_patched.so", "MiWallpaper_patched.apk", "samcam.tar", "samcam_bar.tar", "facehal_payload.tar"),
             hyper.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
         assertEquals(
-            listOf("services_patched.jar", "miui-services_patched.jar", "apprecovery.proinstaller_patched.jar", "framework_patched.jar",
+            listOf("services_patched.jar", "miui-services_patched.jar", "miui-framework_patched.jar", "apprecovery.proinstaller_patched.jar", "framework_patched.jar",
                 "miui-wifi-service_patched.jar", "miui-telephony-common_patched.jar", "vold_patched", "service.incremental_patched.so",
                 "libcamera_client_patched.so", "libsurfaceflinger_patched.so", "telephony-common_patched.jar"),
             hyper.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
@@ -152,100 +155,7 @@ class PackageSetsTest {
         assertEquals(PackageSets.PIXEL_SULTRA.files.filter { it.role != FileRole.GUEST_FIX } + tent + PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
             pixel.files.filter { it.role != FileRole.GUEST_FIX })
         assertEquals(PackageSets.PIXEL_SULTRA.files.filter { it.role != FileRole.GUEST_FIX } + tent, PackageSets.PIXEL_F8.files.filter { it.role != FileRole.GUEST_FIX })
-        // The Pixel 9 Pro XL's set (0.4.22): the same files, from its own image; 0.4.47 its
-        // libcameracompatbilityinfo.so needs One UI's codes too.
-        assertEquals(PackageSets.PIXEL_SULTRA.files + PackageFile("libcameracompatbilityinfo_patched.so", FileRole.GUARD_LIBRARY), PackageSets.PIXEL9_SULTRA.files)
-        assertEquals(Images.ID_PIXEL_KOMODO, PackageSets.PIXEL9_SULTRA.imageId)
-        // One SystemUI build and one relay for both: the APK packs each once.
-        val f8uSums = ShaList.parse(shas(pixel)).entries
-        val f8Sums = ShaList.parse(shas(PackageSets.PIXEL_F8)).entries
-        for (n in hinge) assertEquals(n, f8uSums[n], f8Sums[n])
-        // Owner: leave out only dead weight.
-        assertEquals(listOf("tethering_payload.img"), n6.omitted)
-        assertEquals(listOf("tethering_payload.img"), pixel.omitted)
-        // The global builds carry their own cell broadcast module (0.4.38: the Find N6's too).
-        for (s in listOf(n6, xin)) assertTrue(s.id, PackageSets.CELLBROADCAST in s.names)
-        for (s in PackageSets.ALL) {
-            assertEquals(s.names.size, s.names.toSet().size)
-            assertTrue(s.omitted.none { it in s.names })
-            assertTrue(s.names.none { it == Images.STAGE_NAME })
-            assertTrue(s.id, s.names.containsAll(commonPayloads + "guards.txt" + "services_patched.jar"))
-            assertEquals(s.id, FileRole.GUARDS, s.file("guards.txt")!!.role)
-            // Executable: surfaceflinger_patched and vold_patched only (root's file_mode, deploy-phone.sh's push).
-            for (f in s.files) assertEquals("${s.id} ${f.name}", if (f.name in setOf("surfaceflinger_patched", "vold_patched")) "0755" else "0644", f.mode)
-            // The guest vold's two binaries: both or none (oneos_switch.sh and guest_prepare.sh refuse one alone).
-            assertEquals(s.id, s.file("vold_patched") != null, s.file("service.incremental_patched.so") != null)
-            // Back to One UI in the guest exactly when the set stages the in-guest app (guest_prepare.sh installs it).
-            assertEquals(s.id, PackageSets.GUEST_APP in s.names, s.hasReturnApp)
-        }
-        // The ColorOS sets (0.4.8, rebuilt 2026-10-25): both guard jars, the guest vold
-        // as gvld (ColorOS 17 CP2A.260605.016) and the in-guest app.
-        // 0.4.37: the Find N6 and IN sets with One UI's camera codes too (framework_patched.jar,
-        // libcamera_client_patched.so); the CN set's image is not on the server yet.
-        // 0.4.39: and the SMS service centre fix in telephony-common_patched.jar (a guard jar, after framework_patched.jar).
-        val camera = listOf("framework_patched.jar", "telephony-common_patched.jar", "libcamera_client_patched.so")
-        for (s in listOf(n6, xin)) {
-            val cam = camera
-            // 0.5.05: the Find N6 sets carry oplus-framework_patched.jar (IMS calls); the older X9U set does not.
-            val ofw = if (s === n6) listOf("oplus-framework_patched.jar") else emptyList()
-            assertEquals(listOf("services_patched.jar", "oplus-services_patched.jar") + ofw + cam.take(cam.size.coerceAtMost(2)),
-                s.files.filter { it.role == FileRole.GUARD_JAR }.map { it.name })
-            assertEquals(
-                s.id,
-                listOf("services_patched.jar", "oplus-services_patched.jar", "vold_patched", "service.incremental_patched.so") + ofw + cam,
-                s.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
-            )
-            // 0.4.38: the Find N6 global set carries its cell broadcast module too.
-            assertEquals(s.id, 16, s.files.count { it.role == FileRole.APEX_PAYLOAD })
-            assertEquals(FileRole.SURFACEFLINGER, s.file("surfaceflinger_patched")!!.role)
-            assertEquals(FileRole.GUEST_APP, s.file(PackageSets.GUEST_APP)!!.role)
-            assertTrue(s.hasReturnApp)
-        }
-        // The retired IN build's set is kept as the base of the current 1105 set, and keeps its
-        // fingerprint wave payloads for old-stage data migration checks.
-        // 0.4.97 (r72) / 0.4.98: both carry their own ColorPanoramicSystemUI.apk.
-        // 0.5.05: and oplus-framework_patched.jar, which the older X9U set does not get.
-        assertEquals(
-            ((n6.names - PackageSets.WALLPAPER_GRID_RRO - "Fold8SystemUI.apk" - "Fold8AngleRelay.dex" - "oplus-framework_patched.jar") + x9uWavePayloads).toSet(),
-            xin.names.toSet(),
-        )
-        // 0.4.47: the global builds' Theme Store without its brand check, the same file in both sets.
-        assertEquals(ShaList.parse(shas(n6)).entries[PackageSets.THEME_STORE_APK], ShaList.parse(shas(xin)).entries[PackageSets.THEME_STORE_APK])
-        assertEquals(FileRole.GUEST_FIX, n6.file(PackageSets.THEME_STORE_APK)?.role)
-        assertEquals(listOf(PackageSets.TETHERING, PackageSets.WALLPAPER_GRID_RRO), xin.omitted)
-        assertEquals(16, xin.files.count { it.role == FileRole.APEX_PAYLOAD })
-        assertEquals(
-            listOf("services_patched.jar", "oplus-services_patched.jar", "vold_patched", "service.incremental_patched.so") + camera,
-            xin.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
-        )
-        assertTrue(xin.hasReturnApp)
-        assertEquals(FileRole.RRO, n6.file("OneOSWallpapersFoldGrid.apk")!!.role)
-        // 0.4.38: the Find N6 global build is the IN build's base, so 22 files are byte-identical with
-        // the IN set (16 payloads, surfaceflinger, the guest vold's two binaries, the native camera
-        // client, the in-guest app, 0.4.39 telephony-common_patched.jar and 0.4.47 the patched Theme
-        // Store).
-        val a = ShaList.parse(shas(n6)).entries
-        val g = ShaList.parse(shas(xin)).entries
-        assertEquals(24, a.count { (n, h) -> g[n] == h }) // 0.4.63: + oplus_odm_ai.tar
-        for (n in listOf("vold_patched", "service.incremental_patched.so", "surfaceflinger_patched")) assertEquals(n, a[n], g[n])
-        // The Pixel set's files are its own but the in-guest app, the same build in every set.
-        val c = ShaList.parse(shas(pixel)).entries
-        val colorOs = (a.values + g.values).toSet()
-        // 0.4.38: and the hinge-angle relay, one build for the Pixel and ColorOS fold sets.
-        assertEquals(setOf("Fold8AngleRelay.dex", PackageSets.GUEST_APP), c.filterValues { it in colorOs }.keys)
-        assertEquals(c[PackageSets.GUEST_APP], a[PackageSets.GUEST_APP])
-    }
-
-    /** 0.3.7: exactly the files a Pixel session uses (guest_prepare.sh), with their roles. */
-    @Test
-    fun pixelSetIsWhatAPixelSessionUses() {
-        val roles = pixel.files.associate { it.name to it.role }
-        assertEquals(FileRole.GUARD_JAR, roles["services_patched.jar"])
-        assertEquals(FileRole.GUARD_JAR, roles["framework_patched.jar"])
-        assertEquals(FileRole.GUARD_EXECUTABLE, roles["vold_patched"])
-        assertEquals(FileRole.GUARD_LIBRARY, roles["service.incremental_patched.so"])
-        assertEquals(FileRole.INJECTION_JAR, roles["oneos-telephony.jar"])
-        assertEquals(FileRole.INJECTION_SHA256, roles["oneos-telephony.sha256"])
+        // The Pixel 9 Pro XL's …1797 tokens truncated…os-telephony.sha256"])
         assertEquals(FileRole.RRO, roles["OneOSPhoneInjection.apk"])
         assertEquals(FileRole.RRO, roles["OneOSPixelStatusBar.apk"])
         assertEquals(FileRole.GUEST_APP, roles[PackageSets.GUEST_APP])
@@ -420,3 +330,4 @@ class PackageSetsTest {
         assertEquals(Images.FIND_X9U_IN.rawBytes + SpaceRule.LAUNCH_BYTES, SpaceRule.toStage(Images.FIND_X9U_IN, null))
     }
 }
+

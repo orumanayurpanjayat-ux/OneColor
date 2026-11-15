@@ -15,14 +15,21 @@
 # 0.4.59: samcam with the timer started by a 0 report and stopped with the recorder, secmedia queries on MediaStore, gallery fallback for secmedia uris
 # 0.4.59: samcam with the video rotation written after the stop (fix_video_rotation.py)
 # 0.4.63: services_patched.jar + guest_pdb_init_survives.py (the PDB start task survives a failed FRP deactivation: no init timeout)
-0757469240a71b402aea1210da3311d19f282dc8a7f1bd286a4231ea8f45d7c5  services_patched.jar
-bc275abc635c71d88df70be48e6fbe89d413b2685a88d6967f2ce26cd224086e  miui-services_patched.jar
-5e70dbe022ca34bca76c5da686d20263f527edea54e433ba0758d46462b8679b  apprecovery.proinstaller_patched.jar
-35e1b05262dc0ebc18c59f88e7fcf8ca8cae40b43852ad079a32b66b4292d725  framework_patched.jar
-bac456c6633daf8405146588aa2d283bdf964e011ee123282f20edbc5386fc19  miui-wifi-service_patched.jar
-d75caf178a99009cc8a206adf533297cc6400fce3948617d457056d03c05b81e  miui-telephony-common_patched.jar
+# 0.4.95: services_patched.jar + guest_local_lock.py (the guest's own screen lock: a PIN, pattern or password kept and checked in the guest; nothing reaches the phone's gatekeeper, weaver or keystore)
+# 0.5.00: services_patched.jar + guest_pdb_frp_writes_fail.py (with One UI's FRP active a guest PDB write fails as an I/O error instead of killing system_server's main thread: no black screen at the first start)
+# 0.5.01: framework_patched.jar + guest_secims_ready.py (Samsung IMS hears telephony is ready for a call's callbacks once telephony attaches to the session: calls end in the guest)
+# 0.5.13 (r29): refreshed the guest fingerprint and screen-lock paths; the MIUI display-feature stub
+# keeps Xiaomi-only display calls from crashing Samsung's guest SystemUI.
+80bbe96b33630321b1ff7b6ef413cefcbf59c3d56948108fc15224c9ab73368d  services_patched.jar
+f4c77087cd362502b40501e07943816d55137d2620e6748ac573458615d89e11  miui-services_patched.jar
+5909828c9bbfcef3f41d82382f03ed2c57e9aadeb739945365c77300748a043a  miui-framework_patched.jar
+123d638587d3aaaa046f510d98f2d568e4eccf456b590a0f42192a976f162b14  apprecovery.proinstaller_patched.jar
+5aa3bf6ce8d28f6f4f188ed38cf0dc1f151e708eb3c2e3f86db64c0ff801c7e3  framework_patched.jar
+47c2450ba571f1936a8205f4c55363f196bf58789ce674da4ae9cfba98627fda  miui-wifi-service_patched.jar
+a7d6ae5ae6bb6460b0d15f43ec8a3079c07a586cc561e0bff0552ce9e171dd01  miui-telephony-common_patched.jar
 dc60d42c1b880ea079a55f17e994bbc58c5c12beb23985be97d0811d615b4b49  vold_patched
 282447b888645136c61cab74548e75fd5cec656636c8a16d57a47bcf21e04ff4  service.incremental_patched.so
 977059f2193c2d04987e4fd96be604a2a042aa207841ce3f31e63a3ac9b33e59  libcamera_client_patched.so
 469233dd74dd3083900d42c385c497f8db9e7c3756a191cb28ab8ca583583d29  libsurfaceflinger_patched.so
-5c6ab0096ec94cdbb20c40aec9b3fef91dd7c26e81537db7f8e540294656285c  telephony-common_patched.jar
+d2acf8e0a2adc8f174345f6e62dbd2c5e4a9e2054b5576a55625bb470ef2e88d  telephony-common_patched.jar
+
