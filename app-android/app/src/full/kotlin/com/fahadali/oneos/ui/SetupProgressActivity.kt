@@ -330,8 +330,7 @@ class SetupProgressFragment : Fragment() {
         slot.removeAllViews()
         slot.visibility = if (phase == PrepareJob.Phase.FAILED) View.VISIBLE else View.GONE
         if (phase == PrepareJob.Phase.FAILED) {
-            // The slot is emptied above, so the card's own gap rule saw no card before it (glued to the steps, 11-14).
-            val card = Cards.section(slot, null, rows = true, gapAbove = true)
+            val card = Cards.section(slot, null, rows = true)
             s.finding?.let { CardRows.finding(card, it) }
             s.message?.let { Cards.row(card, 0, getString(R.string.setup_details_result), it) }
         }

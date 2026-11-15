@@ -18,13 +18,6 @@ AJ=$(ls "$SDK"/platforms/android-*/android.jar | sort -V | tail -1)
 DEBUGFS=$(command -v debugfs || echo /usr/sbin/debugfs)
 # A file the image has (ColorOS's own jars are not in a Pixel image).
 in_image() { "$DEBUGFS" -R "stat $1" "$IMG" 2>&1 | grep -q '^Inode:'; }
-# smali 3 refuses the hidden-API "blacklist" flags below API 29, and older
-# framework jars still declare minSdkVersion 28. Raise it on every decoded jar;
-# resources are not decoded (-r), so nothing else reads the value.
-decode() {
-    java -jar "$APKTOOL" d -q -f -r -o "$1" "$2" || return 1
-    sed -i 's/^  minSdkVersion: .*/  minSdkVersion: 29/' "$1/apktool.yml"
-}
 [ -f "$IMG" ] || { echo "usage: $0 <system.img> [outdir]" >&2; exit 2; }
 
 WORK=$(mktemp -d)
@@ -120,15 +113,6 @@ BUILDS = [
         "service.incremental.so": "25979ef93ee4b1a781c16adc783febdba2462563e5a7e69f4ba24d011d4b8427",
         "crashrecovery-google-compressed.apex": "304784481c167b3d196c9ba8ce8d45ea7b59b04b2c061d0b19ed0a4e93574f50",
     }, [("vold", 0x104e6, NAME), ("vold", 0x7ab64, TRY_START), ("service.incremental.so", 0x6536b, NAME)]),
-    # The newer Find X9 Ultra IN OTA (CPH2841IN, security patch 2026-11-01): only vold
-    # changed (8 bytes longer; the only "\0vold\0" 4 bytes earlier, try_start's tbz on
-    # isDeclared() at the same offset with the same code around it);
-    # service.incremental.so and the crashrecovery APEX are the older build's, byte for byte.
-    ("ColorOS 17 CP2A.260605.016 IN (Find X9 Ultra global, 2026-11-01)", {
-        "vold": "41a7e561a3d0e4a52954aa843d8592dfc6c4aa847c5decdd5fff13386cea0660",
-        "service.incremental.so": "25979ef93ee4b1a781c16adc783febdba2462563e5a7e69f4ba24d011d4b8427",
-        "crashrecovery-google-compressed.apex": "304784481c167b3d196c9ba8ce8d45ea7b59b04b2c061d0b19ed0a4e93574f50",
-    }, [("vold", 0x104e2, NAME), ("vold", 0x7ab64, TRY_START), ("service.incremental.so", 0x6536b, NAME)]),
     # Project Infinity-X 4.1 for the Find X9 Ultra (lighthouse, CP2A.260605.016),
     # built from source: its own layout. start() takes the string at 0xe164
     # (adrp 0xe000 + add 0x164), try_start's tbz w19 is at 0x64d8c (+0xd4, as
@@ -141,20 +125,6 @@ BUILDS = [
         "service.incremental.so": "c964e27681a3632a7f83acb1698acffa572b3ece773690bc64444dff7bfaf7a7",
         "crashrecovery-aosp.capex": "1c4fa1a8417b233765db1621f3911b66de230049c39b248f116c3d18a8920ca6",
     }, [("vold", 0xe163, NAME), ("vold", 0x64d8c, TRY_START), ("service.incremental.so", 0x646c0, NAME)]),
-    # LineageOS 24.0 (OnePlus 15 infiniti nightly 2026-11-11, CP2A.260605.016),
-    # built from source: start() takes "vold" at 0xdf7c (adrp 0xd000 + add 0xf7c at
-    # 0x650bc, then String16 and a new VoldNativeService; the binary's only
-    # "\0vold\0", the other references are log tags), try_start's tbz w19, #0,
-    # +0xd4 is at 0x64aa4 right after the isDeclared() call through the service
-    # manager, and service.incremental.so has the string at 0x64481 with its two
-    # lookups (adr at 0xbc51c, adrp + add at 0xbea7c). Its compressed crashrecovery
-    # APEX (com.android.crashrecovery.capex) has AOSP's RescueParty.isDisabled
-    # (persist.sys.disable_rescue, persist.sys.enable_rescue).
-    ("LineageOS 24.0 CP2A.260605.016 (infiniti)", {
-        "vold": "36191041f9c1bd3e853ed08091dc0bd742f7e1aa0e3a8044a267c18a0f714306",
-        "service.incremental.so": "308015cd20592c7bce245a816fb13e045336ef659c326b3107a3bc86c40328ff",
-        "crashrecovery-aosp.capex": "cc082be9ba96bcf361c11f7e6d6f23cf2e2abff7f118c855c0f0590e6fdee6b6",
-    }, [("vold", 0xdf7b, NAME), ("vold", 0x64aa4, TRY_START), ("service.incremental.so", 0x64480, NAME)]),
     # HyperOS OS4.0 (Xiaomi lhasa, 2026-10): start() takes "vold" at 0xf3fd
     # (adrp 0xf000 + add 0x3fd at 0x6e8f4, the binary's only "\0vold\0"),
     # try_start's tbz w19, #0, +0xd4 is at 0x6e2d4, and service.incremental.so
@@ -264,7 +234,7 @@ fi
 # services.jar: LocalDisplayAdapter falls back to the active mode when
 # SurfaceFlinger has no desired mode specs (see patches/display_mode_specs.py).
 "$DEBUGFS" -R "dump /system/framework/services.jar $WORK/services.jar" "$IMG" 2>/dev/null
-decode "$WORK/services" "$WORK/services.jar"
+java -jar "$APKTOOL" d -q -f -r -o "$WORK/services" "$WORK/services.jar"
 SMALI=$(grep -rl "Desired display mode specs from SurfaceFlinger are null" "$WORK/services" | head -1)
 [ -n "$SMALI" ] || { echo "LocalDisplayAdapter not found in services.jar" >&2; exit 1; }
 python3 -I "$ROOT/switcher/patches/display_mode_specs.py" "$SMALI"
@@ -312,21 +282,14 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_force_aidl_finger
 # guest_no_apex_installs.py, guest_app_id_offset.py, guest_no_new_users.py; the KernelSU
 # manager keeps One UI's app id (guest_ksu_manager_appid.py, 0.4.39).
 # 0.4.63: the PDB start task survives a failed FRP deactivation (guest_pdb_init_survives.py).
-# 0.5.00: with One UI's FRP active a guest PDB write fails as an I/O error instead of
-# killing system_server's main thread (A34 ColorOS 17, 0514e9ea; guest_pdb_frp_writes_fail.py).
-# 0.5.13: the guest's PDB reports FRP inactive. MIUI-based images gate the screen-lock
-# setup on it, which also hides fingerprint behind the same page (guest_pdb_frp_inactive.py).
-# A synthetic password Keystore refuses does not stop the guest (S26 Ultra LineageOS b5edb256; guest_sp_migration_tolerant.py).
-for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_frp_writes_fail guest_pdb_frp_inactive guest_sp_migration_tolerant guest_pdb_init_survives guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
+for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_init_survives guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
     NEW=$(python3 -I "$ROOT/switcher/patches/$g.py" "$WORK/services")
     KEY_DIRS="$KEY_DIRS $NEW"
 done
-# The guest's own screen lock: a PIN, pattern or password kept in the guest's own
-# /data/system and checked there, without the phone's gatekeeper, weaver or keystore
-# (patches/guest_local_lock.py, helper OneOSGuestLock). It goes in front of
-# guest_no_gatekeeper's guard, so it runs after that loop; a framework of another
-# shape is left as it is (no guest lock there, as before).
-KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_local_lock.py" "$WORK/services")"
+# A PIN set in the guest is verified by the guest, not the phone's gatekeeper.
+# This runs after guest_no_gatekeeper so the PIN path sits in front of that
+# method's fail-closed guard (patches/guest_local_pin.py).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_local_pin.py" "$WORK/services")"
 # The guest's own idmap2d instead of One UI's (patches/guest_own_idmap.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_own_idmap.py" "$WORK/services")"
 # A WebView zygote that cannot start is logged, not fatal (S24 Ultra, Find X9
@@ -429,7 +392,7 @@ done
 # Only in ColorOS images; without it guest_prepare.sh needs no second guard jar.
 if in_image /system/framework/oplus-services.jar; then
     "$DEBUGFS" -R "dump /system/framework/oplus-services.jar $WORK/oplus-services.jar" "$IMG" 2>/dev/null
-    decode "$WORK/oplus" "$WORK/oplus-services.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/oplus" "$WORK/oplus-services.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/oplus_wait_for_service.py" "$WORK/oplus")
     # QSPM wait in GameGpuControlPanel, ctl.start dumpenvironment and gettpinfo (patches/oplus_boot_hangs.py).
     # (Each patcher in a plain assignment, so set -e stops the build when it fails.)
@@ -505,7 +468,7 @@ fi
 rm -f "$OUT/vivo-services_patched.jar"
 if in_image /system/framework/vivo-services.jar; then
     "$DEBUGFS" -R "dump /system/framework/vivo-services.jar $WORK/vivo-services.jar" "$IMG" 2>/dev/null
-    decode "$WORK/vivo" "$WORK/vivo-services.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/vivo" "$WORK/vivo-services.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_guards.py" vivo-services "$WORK/vivo")
     NEW=$(python3 -I "$ROOT/switcher/patches/guest_storage_guards.py" "$WORK/vivo")
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
@@ -538,7 +501,7 @@ rm -f "$OUT/vivo-telephony-common-platform-ex_patched.jar"
 VTX_JAR=/system/framework/vivo-telephony-common-platform-ex.jar
 if in_image $VTX_JAR; then
     "$DEBUGFS" -R "dump $VTX_JAR $WORK/vtx.jar" "$IMG" 2>/dev/null
-    decode "$WORK/vtx" "$WORK/vtx.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/vtx" "$WORK/vtx.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_telephony.py" "$WORK/vtx")
     java -jar "$APKTOOL" b -q -o "$WORK/vtx-rebuilt.jar" "$WORK/vtx"
     cp "$WORK/vtx.jar" "$OUT/vivo-telephony-common-platform-ex_patched.jar"
@@ -559,7 +522,7 @@ rm -f "$OUT/framework-adapter_patched.jar"
 FA_JAR=/system/framework/framework-adapter.jar
 if in_image /system/framework/vivo-services.jar && in_image $FA_JAR; then
     "$DEBUGFS" -R "dump $FA_JAR $WORK/fa.jar" "$IMG" 2>/dev/null
-    decode "$WORK/fa" "$WORK/fa.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/fa" "$WORK/fa.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_guards.py" framework-adapter "$WORK/fa")
     java -jar "$APKTOOL" b -q -o "$WORK/fa-rebuilt.jar" "$WORK/fa"
     cp "$WORK/fa.jar" "$OUT/framework-adapter_patched.jar"
@@ -577,7 +540,7 @@ MIUI_JAR=/system/system_ext/framework/miui-services.jar
 PRO_JAR=/system/system_ext/framework/apprecovery.proinstaller.jar
 if in_image $MIUI_JAR; then
     "$DEBUGFS" -R "dump $MIUI_JAR $WORK/miui-services.jar" "$IMG" 2>/dev/null
-    decode "$WORK/miui" "$WORK/miui-services.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/miui" "$WORK/miui-services.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/miui_guards.py" "$WORK/miui")
     NEW=$(python3 -I "$ROOT/switcher/patches/guest_storage_guards.py" "$WORK/miui")
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
@@ -601,7 +564,7 @@ if in_image $MIUI_JAR; then
     done
     in_image $PRO_JAR || { echo "ERROR: $MIUI_JAR without $PRO_JAR: another HyperOS layout, not guarded" >&2; exit 1; }
     "$DEBUGFS" -R "dump $PRO_JAR $WORK/proinstaller.jar" "$IMG" 2>/dev/null
-    decode "$WORK/pro" "$WORK/proinstaller.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/pro" "$WORK/proinstaller.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/miui_guards.py" --proinstaller "$WORK/pro")
     java -jar "$APKTOOL" b -q -o "$WORK/pro-rebuilt.jar" "$WORK/pro"
     cp "$WORK/proinstaller.jar" "$OUT/apprecovery.proinstaller_patched.jar"
@@ -620,7 +583,7 @@ if in_image $MIUI_JAR; then
     WIFI_JAR=/system/system_ext/framework/miui-wifi-service.jar
     in_image $WIFI_JAR || { echo "ERROR: $MIUI_JAR without $WIFI_JAR" >&2; exit 1; }
     "$DEBUGFS" -R "dump $WIFI_JAR $WORK/miui-wifi-service.jar" "$IMG" 2>/dev/null
-    decode "$WORK/mwifi" "$WORK/miui-wifi-service.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/mwifi" "$WORK/miui-wifi-service.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_hal_ext.py" --expect 5 "$WORK/mwifi" HalExtWifi)
     java -jar "$APKTOOL" b -q -o "$WORK/mwifi-rebuilt.jar" "$WORK/mwifi"
     cp "$WORK/miui-wifi-service.jar" "$OUT/miui-wifi-service_patched.jar"
@@ -638,7 +601,7 @@ if in_image $MIUI_JAR; then
     TEL_JAR=/system/system_ext/framework/miui-telephony-common.jar
     in_image $TEL_JAR || { echo "ERROR: $MIUI_JAR without $TEL_JAR" >&2; exit 1; }
     "$DEBUGFS" -R "dump $TEL_JAR $WORK/miui-telephony-common.jar" "$IMG" 2>/dev/null
-    decode "$WORK/mtel" "$WORK/miui-telephony-common.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/mtel" "$WORK/miui-telephony-common.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_telephony.py" "$WORK/mtel")
     java -jar "$APKTOOL" b -q -o "$WORK/mtel-rebuilt.jar" "$WORK/mtel"
     cp "$WORK/miui-telephony-common.jar" "$OUT/miui-telephony-common_patched.jar"
@@ -655,7 +618,7 @@ if in_image $MIUI_JAR; then
     XOT_JAR=/system/system_ext/framework/xiaomi-opt-telephony.jar
     if in_image $XOT_JAR; then
         "$DEBUGFS" -R "dump $XOT_JAR $WORK/xiaomi-opt-telephony.jar" "$IMG" 2>/dev/null
-        decode "$WORK/xot" "$WORK/xiaomi-opt-telephony.jar"
+        java -jar "$APKTOOL" d -q -f -r -o "$WORK/xot" "$WORK/xiaomi-opt-telephony.jar"
         DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_hidl_radio.py" "$WORK/xot")
         java -jar "$APKTOOL" b -q -o "$WORK/xot-rebuilt.jar" "$WORK/xot"
         cp "$WORK/xiaomi-opt-telephony.jar" "$OUT/xiaomi-opt-telephony_patched.jar"
@@ -689,7 +652,7 @@ if in_image $MIUI_JAR; then
     # The camera transaction codes step further down builds on this jar (HYPEROS_FW).
     HYPEROS_FW=1
     "$DEBUGFS" -R "dump $FW_JAR $WORK/framework.jar" "$IMG" 2>/dev/null
-    decode "$WORK/fw" "$WORK/framework.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/fw" "$WORK/framework.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_framework.py" "$WORK/fw")
     java -jar "$APKTOOL" b -q -o "$WORK/fw-rebuilt.jar" "$WORK/fw"
     cp "$WORK/framework.jar" "$OUT/framework_patched.jar"
@@ -701,32 +664,10 @@ if in_image $MIUI_JAR; then
         echo "built $OUT/framework_patched.jar (replaced $DEX)"
     done
     rm -rf "$WORK/fw" "$WORK/fw-rebuilt.jar" "$WORK/framework.jar"
-    # miui-framework.jar: DisplayFeatureManager.getInstance() installs a no-op
-    # instance when the "displayfeature" service is absent (patches/
-    # hyperos_displayfeature_stub.py). HyperOS registers that service only with
-    # Xiaomi's vendor.xiaomi.hardware.displayfeature HAL, which a Samsung vendor
-    # does not have: getInstance() returned null and SystemUI's
-    # fingerprint-on-display overlay called setScreenEffect() on it, so the
-    # lockscreen crash-looped under the FOD glyph (S25 Ultra, 2026-11-15).
-    MFW_JAR=/system/system_ext/framework/miui-framework.jar
-    in_image $MFW_JAR || { echo "ERROR: $MIUI_JAR without $MFW_JAR" >&2; exit 1; }
-    "$DEBUGFS" -R "dump $MFW_JAR $WORK/miui-framework.jar" "$IMG" 2>/dev/null
-    decode "$WORK/mfw" "$WORK/miui-framework.jar"
-    DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_displayfeature_stub.py" "$WORK/mfw")
-    java -jar "$APKTOOL" b -q -o "$WORK/mfw-rebuilt.jar" "$WORK/mfw"
-    cp "$WORK/miui-framework.jar" "$OUT/miui-framework_patched.jar"
-    for d in $DIRS; do
-        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
-        rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
-        unzip -q -o "$WORK/mfw-rebuilt.jar" "$DEX" -d "$WORK/mdex"
-        (cd "$WORK/mdex" && zip -q -0 "$OUT/miui-framework_patched.jar" "$DEX")
-        echo "built $OUT/miui-framework_patched.jar (replaced $DEX)"
-    done
-    rm -rf "$WORK/mfw" "$WORK/mfw-rebuilt.jar" "$WORK/miui-framework.jar"
 else
     rm -f "$OUT/miui-services_patched.jar" "$OUT/apprecovery.proinstaller_patched.jar" "$OUT/framework_patched.jar" "$OUT/miui-wifi-service_patched.jar" \
           "$OUT/miui-telephony-common_patched.jar" "$OUT/xiaomi-opt-telephony_patched.jar" "$OUT/socket_exec" \
-          "$OUT/miui-framework_patched.jar" "$OUT/libaudiohal_aidl_patched.so"
+          "$OUT/libaudiohal_aidl_patched.so"
     echo "miui-services.jar: not in the image, nothing to patch"
 fi
 
@@ -736,7 +677,7 @@ fi
 # Not a guard jar: guest_prepare.sh binds it only when it is there.
 if in_image /system/product/framework/ims-ext-common.jar; then
     "$DEBUGFS" -R "dump /system/product/framework/ims-ext-common.jar $WORK/ims-ext-common.jar" "$IMG" 2>/dev/null
-    decode "$WORK/imsext" "$WORK/ims-ext-common.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/imsext" "$WORK/ims-ext-common.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/qti_ims_ext_backoff.py" "$WORK/imsext")
     java -jar "$APKTOOL" b -q -o "$WORK/imsext-rebuilt.jar" "$WORK/imsext"
     cp "$WORK/ims-ext-common.jar" "$OUT/ims-ext-common_patched.jar"
@@ -851,7 +792,7 @@ fi
 # ColorOS's jar (guest_prepare.sh).
 if in_image /system/system_ext/framework/oplus-telephony-common.jar; then
     "$DEBUGFS" -R "dump /system/system_ext/framework/oplus-telephony-common.jar $WORK/oplus-telephony-common.jar" "$IMG" 2>/dev/null
-    decode "$WORK/otc" "$WORK/oplus-telephony-common.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/otc" "$WORK/oplus-telephony-common.jar"
     NEW=$(python3 -I "$ROOT/switcher/patches/guest_signal_poll.py" "$WORK/otc" "$ROOT/switcher/patches/OneOSSignalPoll.smali")
     java -jar "$APKTOOL" b -q -o "$WORK/otc-rebuilt.jar" "$WORK/otc"
     cp "$WORK/oplus-telephony-common.jar" "$OUT/oplus-telephony-common_patched.jar"
@@ -949,7 +890,7 @@ else
         if [ -z "$INJ_WHY" ]; then
             # Another image's jar that apktool cannot read only leaves this out,
             # like every other reason here: not a failed build.
-            if ! decode "$WORK/tc" "$WORK/telephony-common.jar"; then
+            if ! java -jar "$APKTOOL" d -q -f -r -o "$WORK/tc" "$WORK/telephony-common.jar"; then
                 INJ_WHY="apktool could not decode telephony-common.jar"
             elif INJ_CHECK=$(python3 -I "$ROOT/switcher/patches/aosp_signal_poll_check.py" "$WORK/tc" 2>&1); then
                 echo "$INJ_CHECK"
@@ -1054,7 +995,6 @@ JARS=""
 for j in services_patched.jar oplus-services_patched.jar ims-ext-common_patched.jar oplus-telephony-common_patched.jar \
          oneos-telephony.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar \
          miui-wifi-service_patched.jar miui-telephony-common_patched.jar telephony-common_patched.jar vivo-services_patched.jar \
-         miui-framework_patched.jar \
          vivo-telephony-common-platform-ex_patched.jar framework-adapter_patched.jar; do
     [ -f "$OUT/$j" ] && JARS="$JARS $OUT/$j"
 done
@@ -1076,13 +1016,11 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
         [ -f "$OUT/framework_patched.jar" ] && echo "# HyperOS: framework_patched.jar (patches/hyperos_framework.py, CameraStatus as One UI's cameraserver writes it; 0.4.31: and One UI's camera transaction codes, patches/pixel_camera_abi.py)"
         [ -f "$OUT/miui-wifi-service_patched.jar" ] && echo "# HyperOS: miui-wifi-service_patched.jar (patches/hyperos_hal_ext.py, Xiaomi's HAL extension casts only on Xiaomi's)"
         [ -f "$OUT/miui-telephony-common_patched.jar" ] && echo "# HyperOS: miui-telephony-common_patched.jar (patches/hyperos_telephony.py, the IMS controller without an IMS phone)"
-        [ -f "$OUT/miui-framework_patched.jar" ] && echo "# HyperOS: miui-framework_patched.jar (patches/hyperos_displayfeature_stub.py, DisplayFeatureManager a no-op without Xiaomi's displayfeature service: the fingerprint-on-display overlay crashed SystemUI)"
         [ -f "$OUT/telephony-common_patched.jar" ] && echo "# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)"
         [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
         (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
             miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar \
             miui-telephony-common_patched.jar \
-            $([ -f miui-framework_patched.jar ] && echo miui-framework_patched.jar) \
             $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so) \
             $([ -f telephony-common_patched.jar ] && echo telephony-common_patched.jar) \
             $([ -f libcamera_client_patched.so ] && echo libcamera_client_patched.so) \
@@ -1121,9 +1059,6 @@ import hashlib, os, sys
 src, dst = sys.argv[1], sys.argv[2]
 data = bytearray(open(src, "rb").read())
 SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
-         # Find X9 Ultra IN, newer OTA (CPH2841IN, security patch 2026-11-01): the same
-         # bl AIBinder_getExtension / ldr x8 / cbz x8 / bl IQtiComposer3Client::fromBinder at 0x475d24.
-         "9dd1117ff4ab": 0x475d24,
          # Nothing OS 5.0 (Metroid, SDK 37): same three instructions, at 0x452a50
          # (bl AIBinder_getExtension, ldr x8, cbz x8 -> +0x4c, bl IQtiComposer3Client::fromBinder).
          "e5a8726a6687": 0x452a50,
@@ -1300,7 +1235,7 @@ patch_apk_dex() {
         return 0
     fi
     rm -rf "$WORK/pad"
-    decode "$WORK/pad" "$1"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/pad" "$1"
     if PAD_DIRS=$(python3 -I "$ROOT/switcher/patches/$3" "$WORK/pad") && [ -n "$PAD_DIRS" ]; then
         # Rebuild the dex files the patcher changed only (one per line it printed);
         # the others are left out of the build, and each goes back in turn.
@@ -1768,9 +1703,8 @@ GP="$OUT/gmssystem_payload.img"
 rm -f "$GP"
 if [ -z "$GMSAPEX" ]; then
     echo "payload gmssystem: no /system/product/apex/com.google.android.gmssystem*.apex in the image, none staged (no Google services from an APEX)"
-elif [ ! -x "$EXTRACT_EROFS" ]; then
-    echo "payload gmssystem: $EXTRACT_EROFS missing, cannot unpack $GMSAPEX: none staged (set EXTRACT_EROFS to a built extract.erofs; the other payloads are unaffected)" >&2
 else
+    [ -x "$EXTRACT_EROFS" ] || { echo "payload gmssystem: $EXTRACT_EROFS missing, cannot check the payload" >&2; exit 1; }
     rm -f "$WORK/g.apex" "$WORK/g.capex"
     "$DEBUGFS" -R "dump /system/product/apex/$GMSAPEX $WORK/g.capex" "$IMG" 2>/dev/null
     [ -s "$WORK/g.capex" ] || { echo "payload gmssystem: could not dump /system/product/apex/$GMSAPEX" >&2; exit 1; }
@@ -1847,7 +1781,7 @@ for VW in vivo-service-wifi:wifi vivo-service-wifi-ex-impl:impl; do
     [ -s "$WORK/$VWN.jar" ] || continue
     unzip -p "$WORK/$VWN.jar" 'classes*.dex' | grep -aq "addTransportType" || { echo "$VWN.jar: no transport requests, not patched"; continue; }
     rm -rf "$WORK/vw" "$WORK/vw-rebuilt.jar"
-    decode "$WORK/vw" "$WORK/$VWN.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/vw" "$WORK/$VWN.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_wifi_connectivity.py" "$WORK/vw" "$VWM")
     java -jar "$APKTOOL" b -q -o "$WORK/vw-rebuilt.jar" "$WORK/vw"
     cp "$WORK/$VWN.jar" "$WORK/${VWN}_patched.jar"
@@ -1874,7 +1808,7 @@ rm -f "$WORK/framework-wifi.jar"
 [ ! -f "$OUT/wifi_payload.img" ] || "$DEBUGFS" -R "dump /javalib/framework-wifi.jar $WORK/framework-wifi.jar" "$OUT/wifi_payload.img" 2>/dev/null
 if [ -s "$WORK/framework-wifi.jar" ] && unzip -p "$WORK/framework-wifi.jar" 'classes*.dex' | grep -aq "Landroid/net/wifi/VivoTrafficStats;"; then
     rm -rf "$WORK/fw" "$WORK/fw-rebuilt.jar"
-    decode "$WORK/fw" "$WORK/framework-wifi.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/fw" "$WORK/framework-wifi.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_traffic_stats.py" "$WORK/fw")
     java -jar "$APKTOOL" b -q -o "$WORK/fw-rebuilt.jar" "$WORK/fw"
     cp "$WORK/framework-wifi.jar" "$WORK/framework-wifi_patched.jar"
@@ -1959,7 +1893,7 @@ if in_image /system/framework/vivo-framework.jar &&
    "$DEBUGFS" -R "cat /system/build.prop" "$IMG" 2>/dev/null | grep -qx 'ro.vivo.device.type=phone'; then
     "$DEBUGFS" -R "dump /system/framework/vivo-framework.jar $WORK/vivo-framework.jar" "$IMG" 2>/dev/null
     rm -rf "$WORK/vf" "$WORK/vf-rebuilt.jar"
-    decode "$WORK/vf" "$WORK/vivo-framework.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/vf" "$WORK/vivo-framework.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_brightness.py" "$WORK/vf")
     # vivo's secure TEE (sectee) and other vivo vendor HALs: no endless wait (vivo_no_wait.py).
     NEW=$(python3 -I "$ROOT/switcher/patches/vivo_no_wait.py" "$WORK/vf")
@@ -1977,34 +1911,6 @@ if in_image /system/framework/vivo-framework.jar &&
     mv -f "$WORK/vivo-framework_patched.jar" "$OUT/vivo-framework_patched.jar"
     chmod 644 "$OUT/vivo-framework_patched.jar"
     rm -rf "$WORK/vf" "$WORK/vf-rebuilt.jar" "$WORK/vdex" "$WORK/vivo-framework.jar"
-fi
-
-# ColorOS and OxygenOS: outgoing calls over IMS where the carrier asks for VoLTE
-# provisioning (patches/oplus_ims_provision.py; Samsung's IMS service answers 0 and
-# every call was dialled as GSM: Z Fold8 Spectrum 295249c3, S25+ US c8be0b32).
-# oplus-framework.jar is on the boot class path; only the dex the patch changed is
-# rebuilt. Nothing is written when the image has no such check.
-rm -f "$OUT/oplus-framework_patched.jar"
-if in_image /system/framework/oplus-framework.jar; then
-    "$DEBUGFS" -R "dump /system/framework/oplus-framework.jar $WORK/oplus-framework.jar" "$IMG" 2>/dev/null
-    rm -rf "$WORK/of" "$WORK/of-rebuilt.jar"
-    decode "$WORK/of" "$WORK/oplus-framework.jar"
-    DIRS=$(python3 -I "$ROOT/switcher/patches/oplus_ims_provision.py" "$WORK/of")
-    if [ -n "$DIRS" ]; then
-        java -jar "$APKTOOL" b -q -o "$WORK/of-rebuilt.jar" "$WORK/of"
-        cp "$WORK/oplus-framework.jar" "$WORK/oplus-framework_patched.jar"
-        for d in $DIRS; do
-            DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
-            rm -rf "$WORK/ofdex" && mkdir -p "$WORK/ofdex"
-            unzip -q -o "$WORK/of-rebuilt.jar" "$DEX" -d "$WORK/ofdex"
-            (cd "$WORK/ofdex" && zip -q -0 "$WORK/oplus-framework_patched.jar" "$DEX")
-            echo "built $OUT/oplus-framework_patched.jar (replaced $DEX)"
-        done
-        python3 -I "$ROOT/scripts/check-dex.py" "$WORK/oplus-framework_patched.jar"
-        mv -f "$WORK/oplus-framework_patched.jar" "$OUT/oplus-framework_patched.jar"
-        chmod 644 "$OUT/oplus-framework_patched.jar"
-    fi
-    rm -rf "$WORK/of" "$WORK/of-rebuilt.jar" "$WORK/ofdex" "$WORK/oplus-framework.jar"
 fi
 
 # vivo's feature list (patches/vivo_guards.py framework: VivoConfigStoreHelper reads
@@ -2122,18 +2028,3 @@ done
 RJ=""
 for j in "$OUT"/*_patched.jar "$OUT"/oneos-telephony.jar; do [ -f "$j" ] && RJ="$RJ $j"; done
 [ -z "$RJ" ] || python3 -I "$ROOT/scripts/check-oneos-refs.py" "$BT/dexdump" $RJ
-
-# Provenance, read by deploy-phone.sh and check-stage.sh: a set is only as new
-# as the patcher code it was built from, and a stage keeps whatever jars the
-# last deploy pushed (2026-11-14: the ColorOS stage held a services_patched.jar
-# from before the guest lock could mint a hardware auth token, so face
-# enrollment failed on the phone while the source looked right). Written last,
-# so an interrupted build leaves the previous stamp and both call the set old.
-{
-    echo "commit $(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
-    if git -C "$ROOT" diff-index --quiet HEAD -- 2>/dev/null; then echo "dirty 0"; else echo "dirty 1"; fi
-    echo "date $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    echo "image $IMG"
-} > "$OUT/build-info.txt"
-echo "built $OUT/build-info.txt ($(awk '$1 == "commit" { print substr($2, 1, 12) }' "$OUT/build-info.txt"))"
-

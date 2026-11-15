@@ -63,25 +63,6 @@ if [ "$(awk '$2 == "vold_patched" { v = 1 } $2 == "service.incremental_patched.s
     exit 1
 fi
 echo "overlays: $OVERLAYS"
-# A set is only as new as the patcher code it was built from. The app and the
-# source can move on while a stage keeps the jars of an older build (the
-# ColorOS face-enroll fix that never reached the phone, 2026-11-14), so refuse
-# a set built from a commit other than HEAD when the overlays changed since,
-# unless OVERLAYS_STALE=1 says the difference does not matter.
-[ -f "$OVERLAYS/build-info.txt" ] || { echo "$OVERLAYS: no build-info.txt (a set from before provenance: rebuild it)" >&2; exit 1; }
-SET_COMMIT=$(awk '$1 == "commit" { print $2 }' "$OVERLAYS/build-info.txt")
-HEAD_COMMIT=$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true)
-if [ -n "$HEAD_COMMIT" ] && [ "$SET_COMMIT" != "$HEAD_COMMIT" ]; then
-    CHANGED=$(git -C "$ROOT" log --oneline "$SET_COMMIT..HEAD" -- \
-        switcher/patches scripts/make-overlays.sh scripts/patch-framework-camera.sh \
-        scripts/patch-built-jar.sh facehal 2>/dev/null || true)
-    if [ -n "$CHANGED" ]; then
-        echo "$OVERLAYS was built from $(echo "$SET_COMMIT" | cut -c1-12), HEAD is $(echo "$HEAD_COMMIT" | cut -c1-12), and the overlays changed since:" >&2
-        echo "$CHANGED" | sed 's/^/    /' >&2
-        echo "rebuild the set with scripts/make-overlays.sh, or OVERLAYS_STALE=1 to deploy it anyway" >&2
-        [ "${OVERLAYS_STALE:-0}" = 1 ] || exit 1
-    fi
-fi
 # No plain umount in the session scripts: Android's toybox umount also detaches
 # the source's loop device (LOOP_CLR_FD) unless given -D, and through dm-verity
 # that stops one of One UI's APEX loops (return_to_oneui.sh explains). busybox
@@ -150,32 +131,11 @@ fi
 # The stage is root's and writable by root only: every file in it runs as root.
 su_ "mkdir -p $STAGE && chown 0:0 $STAGE && chmod 755 $STAGE && cp -f $INCOMING/*.sh $(for h in $HELPERS; do printf "%s " "$INCOMING/$h"; done) $STAGE/ && chmod 755 $STAGE/*.sh $STAGE/zygote_exec $STAGE/oneos_btaudio && chmod 644 $STAGE/OneOSBootStatus.dex $STAGE/oneos_boot_icon.png $STAGE/OneOSEdmStub.dex $STAGE/OneOSOverlayDimen.dex"
 
-# The facehal-rs payload (facehal/scripts/make-payload.sh) for images whose own
-# face HAL refuses the guest's framework: guest_prepare.sh copies it into the
-# stage and guest_start.sh runs it as IFace/default. A checkout that never built
-# it leaves the phone's copy alone, which is what every older stage expects.
-PAYLOAD="${FACEHAL_PAYLOAD:-$ROOT/facehal/payload}"
-if [ -x "$PAYLOAD/bin/hw/android.hardware.biometrics.face-service.facehal" ]; then
-    mkdir -p "$ROOT/out"
-    tar -C "$PAYLOAD" -cf "$ROOT/out/facehal.tar" bin lib64
-    adb_ push "$ROOT/out/facehal.tar" "$INCOMING/facehal.tar" >/dev/null
-    su_ "rm -rf /data/local/tmp/facehal && mkdir -p /data/local/tmp/facehal && tar -xf $INCOMING/facehal.tar -C /data/local/tmp/facehal && chown -R 0:0 /data/local/tmp/facehal && chmod 755 /data/local/tmp/facehal/bin/hw/android.hardware.biometrics.face-service.facehal && chmod 644 /data/local/tmp/facehal/lib64/*.so"
-    echo "facehal-rs payload: $(du -h "$ROOT/out/facehal.tar" | cut -f1) to /data/local/tmp/facehal"
-fi
-
 # Framework overlays from scripts/make-overlays.sh (bind-mounted by
 # guest_prepare.sh). Only pushed when they differ from what is staged.
-# The stage's files.sha256 is the app's prepared set: a file the set carries but
-# the profile does not name (the fold overlays in a bar phone's ColorOS set)
-# makes the launcher refuse with "is in the stage but was not prepared". It is
-# also the list of files this deploy must leave alone: a set built here cannot
-# make samcam.tar, libsurfaceflinger_patched.so or OneOSGuest.apk, so they come
-# from the app's prepare and are not the deploy's to remove.
-MANIFEST=$(su_ "cat $STAGE/files.sha256 2>/dev/null" | tr -d '\r')
-in_manifest() {
-    [ -z "$MANIFEST" ] && return 1
-    printf '%s\n' "$MANIFEST" | awk -v n="$1" '$2 == n { f = 1 } END { exit !f }'
-}
+# Staged overlays this set does not carry go to the attic first (oneos-telephony.jar
+# and .sha256 too: guest_prepare.sh would offer them to another image), and so
+# do the session scripts under their names up to 0.3.6.
 ATTIC="$STAGE/attic/$(date +%s)"
 for name in $(su_ "ls $STAGE" | tr -d '\r'); do
     case "$name" in
@@ -188,44 +148,19 @@ for name in $(su_ "ls $STAGE" | tr -d '\r'); do
         *) continue ;;
     esac
     [ -f "$OVERLAYS/$name" ] && continue
-    in_manifest "$name" && continue
     su_ "mkdir -p $ATTIC && mv -f $STAGE/$name $ATTIC/"
     echo "moved $name to $ATTIC (not in $OVERLAYS)"
 done
 for f in "$OVERLAYS"/*; do
     [ -f "$f" ] || continue
     name=$(basename "$f")
-    # Provenance for the wave, not a stage file: a deploy reads it, the guest
-    # never does.
-    [ "$name" = build-info.txt ] && continue
-    if [ -n "$MANIFEST" ] && ! in_manifest "$name"; then
-        echo "skipped $name (not in this profile's prepared set)"
-        continue
-    fi
     want=$(sha256sum "$f" | cut -d' ' -f1)
     have=$(su_ "sha256sum $STAGE/$name 2>/dev/null" | cut -d' ' -f1 | tr -d '\r')
     [ "$have" = "$want" ] && continue
     adb_ push "$f" "$INCOMING/$name"
     mode=644; [ -x "$f" ] && mode=755
-    # The push lands as shell; the launcher refuses a set file that is not root's.
-    su_ "mv -f $INCOMING/$name $STAGE/$name && chown 0:0 $STAGE/$name && chmod $mode $STAGE/$name"
-    PUSHED="$PUSHED $name"
+    su_ "mv -f $INCOMING/$name $STAGE/$name && chmod $mode $STAGE/$name"
 done
-# A file the set replaced is a new hash: without this the stage's files.sha256
-# still names the old one and the launcher refuses "changed since it was
-# prepared" (the ColorOS retest, 2026-11-14).
-if [ -n "$PUSHED" ] && [ -n "$MANIFEST" ]; then
-    TMPM=$(mktemp)
-    printf '%s\n' "$MANIFEST" > "$TMPM"
-    for n in $PUSHED; do
-        h=$(sha256sum "$OVERLAYS/$n" | cut -d' ' -f1)
-        awk -v n="$n" -v h="$h" '$2 == n { print h "  " $2; next } { print }' "$TMPM" > "$TMPM.new" && mv -f "$TMPM.new" "$TMPM"
-    done
-    adb_ push "$TMPM" "$INCOMING/files.sha256" > /dev/null
-    su_ "mv -f $INCOMING/files.sha256 $STAGE/files.sha256 && chown 0:0 $STAGE/files.sha256 && chmod 644 $STAGE/files.sha256"
-    echo "files.sha256: updated$PUSHED"
-    rm -f "$TMPM"
-fi
 
 if [ "$1" != "--scripts-only" ]; then
     IMG="$1"

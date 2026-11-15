@@ -99,16 +99,8 @@ def check_apk(apk):
         if line.strip() and not line.startswith("#"):
             remote.add(line.split()[0])
     with zipfile.ZipFile(apk) as z:
-        # The session scripts are the APK's own files; one may equal a set file (0.5.02: the guest
-        # app, switcher/assets/guest_manager.apk, is also the newer set's OneOSGuest.apk).
-        scripts = set()
-        if "assets/oneos/sets/scripts.sha256" in z.namelist():
-            for line in z.read("assets/oneos/sets/scripts.sha256").decode().splitlines():
-                if line.strip():
-                    scripts.add(line.split()[0])
         for n in z.namelist():
-            sum_ = n.rsplit("/", 1)[-1]
-            if n.startswith("assets/oneos/files/") and sum_ in remote and sum_ not in scripts:
+            if n.startswith("assets/oneos/files/") and n.rsplit("/", 1)[-1] in remote:
                 problems.append(f"{n} is a set file (on Drive, not in the APK)")
     return problems
 

@@ -210,7 +210,7 @@ class OldStagesFragment : CardsFragment() {
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.space_delete_all_title)
             .setMessage(getString(R.string.space_delete_all_message, what, Units.bytes(copies.sumOf { it.kib } * 1024)))
-            .setPositiveButton(R.string.space_delete_run) { _, _ -> activity?.let { SystemManage.deleteAllCopies(it) } }
+            .setPositiveButton(R.string.space_delete_run) { _, _ -> OldStagesJob.deleteAll(requireContext()) }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
@@ -223,7 +223,7 @@ class OldStagesFragment : CardsFragment() {
         AlertDialog.Builder(requireContext())
             .setTitle(R.string.space_delete_title)
             .setMessage(getString(R.string.space_delete_message, what, sizeAndDate))
-            .setPositiveButton(R.string.space_delete_run) { _, _ -> activity?.let { SystemManage.deleteCopy(it, s, "$what ($sizeAndDate)") } }
+            .setPositiveButton(R.string.space_delete_run) { _, _ -> OldStagesJob.delete(requireContext(), s) }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }

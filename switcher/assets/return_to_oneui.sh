@@ -976,11 +976,6 @@ wait_found media.audio_policy 20 || failsafe "One UI's audioserver did not regis
 for svc in $(getprop | sed -n 's/^\[init\.svc\.\([^]]*camera[.-]provider[^]]*\)\]: \[running\]$/\1/p'); do
     setprop ctl.restart "$svc"
 done
-# One UI's face HAL: the guest's facehal-rs stopped it before registering its own
-# IFace/default (guest_start.sh), and init does not restart a service stopped
-# with "stop" until it is told. Without this One UI's face unlock stays dead and
-# Samsung's face service is missing until the next reboot.
-setprop ctl.start sec-biometrics-face-aidl
 # zygote's own onrestart list, which ctl.start skips: cameraserver, media,
 # wificond (netd follows below). The guest held the GNSS HAL's callbacks.
 setprop ctl.restart cameraserver
@@ -1081,14 +1076,6 @@ while :; do
             # An am without the command: One UI's home screen process instead.
             *nknown*|*rror*) pidof com.sec.android.app.launcher >/dev/null && { up=$t; say "One UI Home running after ${t}s"; } ;;
         esac
-        # 0.5.07: One UI is up, so the "Returning to One UI" layer goes now. It ends
-        # itself on One UI's boot events, but twice it stayed over a working One UI
-        # (S24 FE HyperOS fbc98ae7, S24 OriginOS f4a3c170: "the Returning to One UI
-        # didn't disappear").
-        if [ $up -gt 0 ] && type oneos_boot_stop >/dev/null 2>&1; then
-            oneos_boot_stop
-            say "Return splash: stopped (One UI is up)"
-        fi
     fi
     [ $up -gt 0 ] && [ $t -ge $((up + 30)) ] && break
     [ $up = 0 ] && [ $t -ge 180 ] && failsafe "user 0 not unlocked within 180 s"

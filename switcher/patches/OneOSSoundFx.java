@@ -49,10 +49,7 @@ public final class OneOSSoundFx {
    if (fx == null) Thread.sleep(2000);
   }
   if (fx == null) { log("no effect of type " + type + " on the output mix; exiting"); return; }
-  // 0.5.11: music already playing when it was made counts as a start too (it was made at boot,
-  // on whatever output ran then; S25 Ultra LineageOS 89eaa265, "speakers sound muffled": the
-  // effect sat on the idle deep-buffer output for 10 minutes, 0 re-attachments).
-  boolean was = false;
+  boolean was = musicActive();
   int moves = 0;
   while (alive(guest)) {
    Thread.sleep(2000);
