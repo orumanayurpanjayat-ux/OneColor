@@ -34,6 +34,22 @@ root_only() {
 }
 [ "$(id -u 2>/dev/null)" = 0 ] || refuse "not running as root"
 
+# A store app's native helper run as a program (libtimer.so from an app's lib
+# folder, as the shell user, argument "umhpipe") that works on kernel pipes:
+# every S24-family kernel panic in free_pipe_info/pipe_read since 0.4.9x ran in
+# that thread (0.5.03's timer_threads.txt, report 60192300, 11-13). Not stopped
+# here: the panic comes when its pipe is freed, so killing it would be the crash. The
+# app starts the tool again at boot (aee4e2df on 0.5.04: refused after two restarts), so
+# the message asks for the app to be uninstalled.
+for ex in /proc/[0-9]*/exe; do
+    t=$(readlink "$ex" 2>/dev/null) || continue
+    case "$t" in
+        /data/app/*/lib/*/libtimer.so)
+            a=${t#/data/app/}; a=${a#*/}; a=${a%%/lib/*}; a=${a%%-*}
+            refuse "the app $a runs a kernel tool (libtimer.so, pid $(echo "$ex" | cut -d/ -f3)) that crashed the kernel of S24 phones during OneOS sessions. It starts again after every restart, so restarting does not help: uninstall $a (Settings, Apps; the phone may restart once while its tool closes), then switch again" ;;
+    esac
+done
+
 # Root tools: the root manager's own busybox and resetprop (KernelSU, APatch,
 # Magisk), never whatever a search of /data finds (OneLineage fell back to
 # `find /data -name busybox`). A missing resetprop is fatal: without it
@@ -180,6 +196,7 @@ fi
 case "${ONEOS_GUEST_GMS:-1}" in 0|1) ;; *) refuse "ONEOS_GUEST_GMS=$ONEOS_GUEST_GMS (0 or 1)" ;; esac
 # Cool down when hot (the heat cap below): 0 or 1, unset meaning 1.
 case "${ONEOS_HEAT_CAP:-1}" in 0|1) ;; *) refuse "ONEOS_HEAT_CAP=$ONEOS_HEAT_CAP (0 or 1)" ;; esac
+case "${ONEOS_FULL_LOGS:-1}" in 0|1) ;; *) refuse "ONEOS_FULL_LOGS=$ONEOS_FULL_LOGS (0 or 1)" ;; esac
 [ "${ONEOS_GUEST_GMS:-1}" = 1 ] && [ "${ONEOS_GUEST_HIDE_GMS:-0}" = 1 ] && [ -f "$STAGE/gmssystem_payload.img" ] &&
     refuse "ONEOS_GUEST_GMS is on (the default) with gmssystem_payload.img staged, and ONEOS_GUEST_HIDE_GMS=1 hides Google services: set one of them to 0"
 # The same guard and app-id checks as guest_prepare.sh, here so a refusal comes
@@ -456,8 +473,16 @@ timeout 15 dumpsys SurfaceFlinger 2>/dev/null > "$STAGE/display_sf_host.txt"
 grep -E 'activeMode=|[{]id=[0-9]+, hwcId=|peakRefreshRate=' "$STAGE/display_sf_host.txt" | head -n 120 | cut -c1-400 >> "$STAGE/display_modes_host.log"
 echo "preflight: display sf done $(date +%T)"
 timeout 10 dumpsys display 2>/dev/null > "$STAGE/display_host.txt"
+# Lines cut at 3000 characters; a longer DisplayDeviceInfo keeps its panel port and
+# brightnessMaximum at the end, which guest_props.sh and guest_prepare.sh read (0.5.11:
+# the S23 Ultra's 21 modes put them past 6000, and every system got the Fold's
+# brightness scale instead of this panel's: a dim screen, report 049dac7b).
 grep -E 'mSupportedModes|mActiveModeId|mDefaultModeId|DisplayModeRecord|mUserPreferredModeId|mDisplayModeSpecs|DisplayDeviceInfo\{' "$STAGE/display_host.txt" |
-    cut -c1-3000 >> "$STAGE/display_modes_host.log"
+    awk 'length($0) <= 3000 || index($0, "DisplayDeviceInfo{") == 0 { print substr($0, 1, 3000); next }
+        { t = ""
+          if (match($0, /port=[0-9]+[},]/)) t = t " " substr($0, RSTART, RLENGTH)
+          if (match($0, /brightnessMaximum [0-9.]+/)) t = t " " substr($0, RSTART, RLENGTH)
+          print substr($0, 1, 3000) " ..." t }' >> "$STAGE/display_modes_host.log"
 echo "preflight: display modes done $(date +%T)"
 for p in /sys/class/lcd/panel /sys/class/lcd/panel1; do
     [ -d "$p" ] || continue
@@ -782,7 +807,18 @@ LOGS=/data/local/tmp/oneos_logs
 # return_to_oneui.sh stops it) keeps its head/, which may hold the boot of an
 # earlier session that its rotation has dropped since.
 LOGCAT_HEAD=0
-if [ "${ONEOS_LOGCAT:-1}" = 1 ]; then
+# ONEOS_FULL_LOGS=0 (Full session logs off in the app): no capture, so no head/ either
+# (LOGCAT_HEAD stays 0 and the 90 s round skips its links); the reports then have the
+# stage logs, sound_watch.log and the diag snapshots only. A capture already running
+# (by hand, or the last session's before its stop) is left alone.
+if [ "${ONEOS_LOGCAT:-1}" = 1 ] && [ "${ONEOS_FULL_LOGS:-1}" != 1 ]; then
+    # An earlier session's files move to oneos_logs.prev, as a new capture does, so this
+    # session's report never carries them as its own.
+    if ! pgrep -f "^logcat .*$LOGS/boot.log" >/dev/null 2>&1; then
+        rm -rf "$LOGS.prev"; [ -d "$LOGS" ] && mv "$LOGS" "$LOGS.prev"
+    fi
+    echo "Logcat capture: off (Full session logs off in the app)"
+elif [ "${ONEOS_LOGCAT:-1}" = 1 ]; then
     # pgrep -f matches the same "^logcat ... boot.log" command line in one
     # process. The loop it replaces forked tr and grep for each of ~1100 pids:
     # 1.6 s with One UI idle (measured 22 Oct, pgrep 49 ms), and it runs before
@@ -1743,8 +1779,11 @@ fi
 # its Bluetooth module ("BtAudioAIDLService: Could not register ...
 # IBluetoothAudioProviderFactory/default, status=-3", S24 Ultra ColorOS
 # sessions): with the declaration that now succeeds and replaces the bridge's
-# registration, which is as good (the Fold8 Ultra has exactly that); the return
-# restarts the audio HAL after taking the declaration back. Only when Samsung's
+# registration. That is NOT as good: the audio HAL's own Bluetooth path waits
+# for Samsung's sessions, so playback on Qualcomm's provider fails with -38 and
+# the sound stays on the speaker (Galaxy S23 ColorOS, report c49cdbce). The
+# bridge therefore takes the name back whenever another process holds it; the
+# return restarts the audio HAL after taking the declaration back. Only when Samsung's
 # factory is registered and Android's is not; ONEOS_GUEST_BT_AUDIO_BRIDGE=0
 # leaves it all alone.
 rm -f "$STAGE/bt_bridge_vintf"
@@ -2719,6 +2758,24 @@ while true; do
             # curve was wrong (run 28: 1702 looked like ~420 nits, is ~15).
             [ -f $STAGE/data/.oneos_curve2 ] || { $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system screen_brightness 4570; touch $STAGE/data/.oneos_curve2; }
             fi
+            # HyperOS starts at the image's own auto default (31 of 255, mode 1:
+            # about 20 nits on this panel) and nothing moves it, so the first
+            # minutes of every fresh stage were spent on a nearly black screen.
+            # AOSP's scale here; repaired only while the guest is still at that
+            # default, so a value the owner set later (the slider writes mode 0)
+            # stays. Not a ColorOS value: 4570 is ColorOS's scale.
+            if [ \$GUEST_MIUI = 1 ]; then
+                bm=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system screen_brightness 2>/dev/null)
+                mm=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system screen_brightness_mode 2>/dev/null)
+                case \"\${bm:-}\" in ''|*[!0-9]*) bm=-1 ;; esac
+                if [ \"\${mm:-1}\" = 1 ] && [ \$bm -ge 0 ] && [ \$bm -le 40 ]; then
+                    $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system screen_brightness 140
+                    $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system screen_brightness_mode 0
+                    echo \"[UI Activator] brightness: HyperOS at its low auto default (\$bm, mode \${mm:-?}) -> 140, manual\"
+                else
+                    echo \"[UI Activator] brightness: HyperOS \${bm:--}, mode \${mm:--} kept\"
+                fi
+            fi
             echo \"[UI Activator] refresh: min \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system min_refresh_rate) peak \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system peak_refresh_rate); brightness \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system screen_brightness)\"
             echo '[UI Activator] Home activated!'
             # ColorOS lock screen depth effect (0.4.60, owner; 0.4.59 A36 768c5a1d, S23
@@ -3335,6 +3392,12 @@ while true; do
                 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_fold8/runtime.sh runtime >\"$STAGE/fold8_runtime.log\" 2>&1 || echo '[UI Activator] Fold8 runtime setup failed; see fold8_runtime.log'
             fi
 
+            # ColorOS wallpaper AOD on the bar phones (0.4.97): guest_prepare.sh wrote this script only where
+            # the set's ColorPanoramicSystemUI.apk is bound; it adds the app feature and restarts SystemUI once.
+            if [ -f \"$STAGE/data/oneos_panoramic_aod.sh\" ]; then
+                $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_panoramic_aod.sh >\"$STAGE/panoramic_aod.log\" 2>&1 || echo '[UI Activator] Wallpaper AOD setup failed; see panoramic_aod.log'
+            fi
+
             # Pixel Fold8 / Fold8 Ultra: start the system-UID sensor reader in the guest namespace
             # (fold8_pixel.sh prepare made runtime.sh only for those two sets).
             if { [ \"${ONEOS_PROFILE:-}\" = f8 ] || [ \"${ONEOS_PROFILE:-}\" = f8u ]; } && grep -q '\"set\": \"pixel-f8u\\{0,1\\}\",' \"$STAGE/.oneos_stage\" && [ -f \"$STAGE/data/oneos_pixel_hinge/runtime.sh\" ]; then
@@ -3815,6 +3878,17 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     { for p in /sys/devices/system/cpu/cpufreq/policy*; do echo \"\$p cur/max/hw \$(cat \$p/scaling_cur_freq \$p/scaling_max_freq \$p/cpuinfo_max_freq 2>/dev/null | tr '\n' ' ')\"; done
                       echo \"gpu cur \$(cat /sys/class/kgsl/kgsl-3d0/devfreq/cur_freq 2>&1) max \$(cat /sys/class/kgsl/kgsl-3d0/max_gpuclk 2>&1)\"
                       timeout 10 logcat -d -s thermal_core 2>/dev/null | tail -n 3; } > \$D/throttle.txt 2>&1
+                    # Galaxy S24 family kernel panics in free_pipe_info (10 reports, 0.4.84-0.5.01, ColorOS IN,
+                    # OriginOS and Pixel 9 Pro XL): the exiting thread is almost always named libtimer.so (else
+                    # \"POSIX timer N\"), and no log tells whose it is. Record each such thread's process.
+                    for tk in /proc/[0-9]*/task/[0-9]*; do
+                        c=\$(cat \$tk/comm 2>/dev/null)
+                        case \"\$c\" in
+                            libtimer*|'POSIX timer'*)
+                                p=\${tk#/proc/}; p=\${p%%/*}
+                                echo \"\$c tid=\${tk##*/} pid=\$p uid=\$(stat -c %u /proc/\$p 2>/dev/null) cmd=\$(tr '\0' ' ' < /proc/\$p/cmdline 2>/dev/null | cut -c1-200) exe=\$(readlink /proc/\$p/exe 2>/dev/null)\" ;;
+                        esac
+                    done > \$D/timer_threads.txt 2>&1
                     # Did user 0 unlock, did the launcher get a window, and if not,
                     # where are the launcher and SystemUI main threads stuck?
                     if [ \$dname != 20 ]; then
