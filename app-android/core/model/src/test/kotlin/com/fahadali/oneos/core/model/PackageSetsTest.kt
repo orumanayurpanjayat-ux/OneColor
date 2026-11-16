@@ -50,7 +50,8 @@ class PackageSetsTest {
         assertEquals("out/overlays_pixel_f8u_r19", pixel.sourceDir)
         assertEquals(
             listOf(PackageSets.N6_GLOBAL_F8, n6, PackageSets.X9U_IN_1105_SULTRA, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
-                PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.NOTHING_F8U, PackageSets.OXYGEN16, PackageSets.ORIGINOS, PackageSets.LINEAGE),
+                PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.NOTHING_F8U, PackageSets.NOTHING_A,
+                PackageSets.OXYGEN16, PackageSets.ORIGINOS, PackageSets.LINEAGE),
             PackageSets.ALL,
         )
         // Infinity-X (0.4.27): both guard jars, the camera codes (Java and native), the guest vold, the
@@ -60,9 +61,11 @@ class PackageSetsTest {
         assertEquals(Images.ID_INFINITYX, ifx.imageId)
         assertEquals("out/overlays_infinityx_r16", ifx.sourceDir)
         // 0.4.55 (r4): telephony-common_patched.jar (the SMS centre) and samcam.tar (the S26 Ultra's camera).
-        assertEquals(36, ifx.files.size)
+        assertEquals(37, ifx.files.size)
+        assertEquals(683_185_596L, ifx.approxBytes)
         // 0.4.33: the status bar's corner padding, as on the Pixel images.
         assertTrue(ifx.file("OneOSPixelStatusBar.apk")?.role == FileRole.RRO)
+        assertEquals(FileRole.GUEST_FIX, ifx.file("SystemUI_glyph.apk")?.role)
         assertEquals(21, ifx.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING, PackageSets.CELLBROADCAST), ifx.omitted)
         assertTrue(ifx.file(PackageSets.CELLBROADCAST) == null)
@@ -78,8 +81,8 @@ class PackageSetsTest {
         val lineage = PackageSets.LINEAGE
         assertEquals("lineage", lineage.id)
         assertEquals(Images.ID_LINEAGE, lineage.imageId)
-        assertEquals("out/overlays_lineage_r5", lineage.sourceDir)
-        assertEquals(38, lineage.files.size) // 0.5.07 r3: + libbootanimation_preapex_patched.so; 0.5.06 r2: + OneOSPixelDoze.apk (AOD)
+        assertEquals("out/overlays_lineage_r7", lineage.sourceDir)
+        assertEquals(40, lineage.files.size) // r6 adds both Samsung camera bundles.
         assertEquals(20, lineage.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING, PackageSets.CELLBROADCAST), lineage.omitted)
         assertTrue(lineage.file(PackageSets.GMS_PAYLOAD) == null && lineage.file("oplus-services_patched.jar") == null && lineage.file("samcam.tar") == null)
@@ -100,7 +103,7 @@ class PackageSetsTest {
         assertEquals(
             listOf("services_patched.jar", "miui-services_patched.jar", "miui-framework_patched.jar", "apprecovery.proinstaller_patched.jar", "framework_patched.jar",
                 "miui-wifi-service_patched.jar", "miui-telephony-common_patched.jar", "vold_patched", "service.incremental_patched.so",
-                "libcamera_client_patched.so", "libsurfaceflinger_patched.so", "telephony-common_patched.jar"),
+                "libcamera_client_patched.so", "telephony-common_patched.jar"),
             hyper.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(hyper.hasReturnApp && "vold_patched" in hyper.names)

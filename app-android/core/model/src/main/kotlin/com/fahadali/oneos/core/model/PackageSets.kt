@@ -508,13 +508,15 @@ object PackageSets {
             PackageFile(GUEST_APP, FileRole.GUEST_APP),
             // 0.4.33: the status bar's corner padding, as on the Pixel images (r2).
             PackageFile("OneOSPixelStatusBar.apk", FileRole.RRO),
+            // 0.5.16 r19: Infinity-X's SystemUI with the fingerprint glyph fix; bound only on Infinity-X.
+            PackageFile("SystemUI_glyph.apk", FileRole.GUEST_FIX),
             // 0.4.55 (r4): One UI's camera, the Galaxy S26 Ultra's, rewritten for this image; 0.4.57 (r5)
             // with the system's camera icon in its notifications (fix_notification_icon.py).
             PackageFile("samcam.tar", FileRole.GUEST_FIX),
         ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "telephonycore", "conscrypt", "profiling", "gmssystem"))
             .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
         omitted = listOf(TETHERING, CELLBROADCAST),
-        approxBytes = 616_237_045L,
+        approxBytes = 683_185_596L,
         hasReturnApp = true,
     )
 
