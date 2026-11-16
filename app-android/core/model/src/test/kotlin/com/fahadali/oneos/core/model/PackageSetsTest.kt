@@ -94,8 +94,8 @@ class PackageSetsTest {
         val hyper = PackageSets.HYPER_F8U
         assertEquals(Images.ID_HYPEROS_LHASA, hyper.imageId)
         assertEquals("out/overlays_hyperos_r29", hyper.sourceDir)
-        assertEquals(41, hyper.files.size) // r29 adds miui-framework_patched.jar and facehal_payload.tar.
-        assertEquals(listOf("socket_exec", "libaudiohal_aidl_patched.so", "MiWallpaper_patched.apk", "samcam.tar", "samcam_bar.tar", "facehal_payload.tar"),
+        assertEquals(41, hyper.files.size) // r29 adds the display-feature guard and face enrollment payload.
+        assertEquals(listOf("libsurfaceflinger_patched.so", "socket_exec", "libaudiohal_aidl_patched.so", "MiWallpaper_patched.apk", "samcam.tar", "samcam_bar.tar", "facehal_payload.tar"),
             hyper.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
         assertEquals(
             listOf("services_patched.jar", "miui-services_patched.jar", "miui-framework_patched.jar", "apprecovery.proinstaller_patched.jar", "framework_patched.jar",

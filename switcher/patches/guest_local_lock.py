@@ -19,15 +19,17 @@ Seven changes, all or none:
    method oneosGuestLockSet asks OneOSGuestLock.change() for user 0. Done -> true (the public
    setLockCredential then runs its usual steps), refused (wrong old credential, a wait is
    running) -> false, nothing to do -> the guard answers as before.
-2. LockSettingsService.doVerifyCredential: at the entry, the added method oneosGuestLockVerify
-   asks OneOSGuestLock.verify() for user 0. No guest lock -> the method goes its own way. A
-   match -> the progress callback (AOSP's lock screen opens on it, not on the result), strong
-   auth reported, listeners told, and VerifyCredentialResponse holding OneOSGuestLock.HANDLE, the
-   guest lock's gatekeeper-password handle (never a password or token of the phone's gatekeeper,
-   whatever the flags), so Settings can ask for a token to enroll a face; nothing of the
-   framework's own unlock (keystore, CE storage, recoverable keystore) is touched. A wrong guess ->
-   credIncorrect(wait), a guess during a wait -> fromTimeout(left), as the framework's own
-   software rate limiter answers; with a wait, strong auth "after lockout" is required as there.
+2. LockSettingsService.doVerifyCredential, or doVerifyCredentialInner on an image whose
+   doVerifyCredential only wraps it (AOSP 13+, Infinity-X 4.1): at the entry, the added method
+   oneosGuestLockVerify asks OneOSGuestLock.verify() for user 0. No guest lock -> the method goes
+   its own way. A match -> the progress callback (AOSP's lock screen opens on it, not on the
+   result), strong auth reported, listeners told, and VerifyCredentialResponse holding
+   OneOSGuestLock.HANDLE, the guest lock's gatekeeper-password handle (never a password or token of
+   the phone's gatekeeper, whatever the flags), so Settings can ask for a token to enroll a face;
+   nothing of the framework's own unlock (keystore, CE storage, recoverable keystore) is touched. A
+   wrong guess -> credIncorrect(wait), a guess during a wait -> fromTimeout(left), as the
+   framework's own software rate limiter answers; with a wait, strong auth "after lockout" is
+   required as there.
 3. LockSettingsService.getCredentialType (the public binder method only): the guest lock's type
    when one is set. The lock screen, Settings, WindowManager and TrustManager read it through
    LockPatternUtils; getCredentialTypeInternal and with it the service's own state (synthetic
@@ -136,6 +138,14 @@ def method(lines, name, desc, rel):
     if not m:
         raise Skip(f"{rel}: {name} has no .locals line")
     return i, end, int(m.group(1))
+
+
+def optional_method(lines, name, desc, rel):
+    """method(), or None when the image has no such method."""
+    try:
+        return method(lines, name, desc, rel)
+    except Skip:
+        return None
 
 
 def entry(lines, i):
@@ -545,7 +555,13 @@ def patch_lss(lines, rel, pkg_text):
         raise Skip(f"{rel}: no field mStrongAuth")
 
     s_i, s_end, s_locals = method(lines, "setLockCredentialInternal", f"({CRED}{CRED}IZ)Z", rel)
-    v_i, v_end, v_locals = method(lines, "doVerifyCredential", f"({CRED}I{CALLBACK}I){VCR}", rel)
+    v = method(lines, "doVerifyCredential", f"({CRED}I{CALLBACK}I){VCR}", rel)
+    if v[2] < 1:
+        # AOSP 13+ wraps the check: doVerifyCredential only calls doVerifyCredentialInner and
+        # hands its answer to the duress helper (Infinity-X 4.1, ".locals 0"). Hook the inner
+        # method instead; the wrapper then runs as it does without a guest lock.
+        v = optional_method(lines, "doVerifyCredentialInner", f"({CRED}I{CALLBACK}I){VCR}", rel) or v
+    v_i, v_end, v_locals = v
     t_i, t_end, t_locals = method(lines, "getCredentialType", "(I)I", rel)
     g_i, _, g_locals = method(lines, "verifyGatekeeperPasswordHandle", f"(JJI){VCR}", rel)
     f_i, f_end, _ = method(lines, "enforceFrpNotActive", "()V", rel)

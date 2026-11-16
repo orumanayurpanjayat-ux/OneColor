@@ -209,6 +209,26 @@ def lss_text(guard='decoded', type_body='plain', helpers='private'):
 '''
 
 
+def lss_text_aosp():
+    """lss_text() with AOSP 13+'s doVerifyCredential wrapper around doVerifyCredentialInner."""
+    text = lss_text()
+    start = text.index('.method private doVerifyCredential(')
+    end = text.index('.end method', start) + len('.end method')
+    inner = text[start:end].replace(
+        '.method private doVerifyCredential(', '.method public final doVerifyCredentialInner(', 1)
+    wrapper = f'''.method public final doVerifyCredential({CRED}I{CB}I){VCR}
+    .locals 0
+
+    .line 2638
+    invoke-virtual {{p0, p1, p2, p3, p4}}, {LSS}->doVerifyCredentialInner({CRED}I{CB}I){VCR}
+
+    move-result-object p2
+
+    return-object p2
+.end method'''
+    return text[:start] + wrapper + '\n\n' + inner + text[end:]
+
+
 def auth_text(access='public'):
     return f'''.class public Lcom/android/server/locksettings/LockSettingsStrongAuth;
 .super Ljava/lang/Object;
@@ -370,6 +390,23 @@ class PatcherTest(unittest.TestCase):
             ':oneos_gl_native',
             f'invoke-virtual {{p1}}, {CRED}->isNone()Z',
         ])
+
+    def test_a_verification_wrapper_is_hooked_at_the_inner_method(self):
+        self.patched(lss=lss_text_aosp())
+        text = self.read(LSS_FILE)
+        self.assertEqual(body(text, ' doVerifyCredentialInner(')[:6], [
+            f'invoke-direct/range {{p0 .. p3}}, {LSS}->oneosGuestLockVerify({CRED}I{CB}){VCR}',
+            'move-result-object v0',
+            'if-eqz v0, :oneos_gl_native',
+            'return-object v0',
+            ':oneos_gl_native',
+            f'invoke-virtual {{p1}}, {CRED}->isNone()Z',
+        ])
+        self.assertEqual(body(text, ' doVerifyCredential('), [
+            f'invoke-virtual {{p0, p1, p2, p3, p4}}, {LSS}->doVerifyCredentialInner({CRED}I{CB}I){VCR}',
+            'move-result-object p2',
+            'return-object p2',
+        ], 'the wrapper is left as it is: it hands the answer to the duress helper')
 
     def test_the_credential_type_comes_from_the_guest_lock_and_survives_a_missing_helper(self):
         self.patched()

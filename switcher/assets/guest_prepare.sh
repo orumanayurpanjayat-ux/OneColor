@@ -773,6 +773,13 @@ SAMCAM_TAR="$STAGE/samcam.tar"
 if [ "${ONEOS_GUEST_FORM:-fold}" != fold ] && [ -f "$STAGE/samcam_bar.tar" ] && [ ! -L "$STAGE/samcam_bar.tar" ]; then
     SAMCAM_TAR="$STAGE/samcam_bar.tar"
 fi
+# 0.5.14: a Galaxy A or M phone takes the A series' own camera (samcam_a.tar, built from the Galaxy
+# A36's One UI 9) where the set has one: the flagship's camera on an A phone's sensors needed the crop,
+# mode and resolution fixes (fix_a_series_*.py) and still failed in 7 of 14 A36 ColorOS reports.
+case "$(getprop ro.product.model)" in
+    SM-A*|SM-M*)
+        if [ -f "$STAGE/samcam_a.tar" ] && [ ! -L "$STAGE/samcam_a.tar" ]; then SAMCAM_TAR="$STAGE/samcam_a.tar"; fi ;;
+esac
 SAMCAM_IMAGE=0
 [ -f "$SAMCAM_TAR" ] && [ ! -L "$SAMCAM_TAR" ] && SAMCAM_IMAGE=1
 if [ $SAMCAM_IMAGE = 1 ] && [ ! -L "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
@@ -1645,7 +1652,11 @@ elif [ "${ONEOS_GUEST_DISPLAY_CONFIG:-1}" != 1 ]; then
     echo "Display config: the image's own (ONEOS_GUEST_DISPLAY_CONFIG=0)"
 elif [ ! -d "$PETC" ] || [ -L "$PETC" ]; then
     echo "Display config: no product/etc folder in the image, left out"
-elif mount | grep -q " $PETC type overlay"; then
+# Only our own overlay counts as an earlier prepare's (lowerdir = product_etc_ov). 0.5.14's Samsung Camera
+# overlay on LineageOS's /system leaves its own overlay mount on system/product/etc, and this check took
+# it for ours: no One UI curve, LineageOS's default one (100 % at 255 lux, the panel's peak) on every
+# Galaxy (A36, 2026-11-15: full bright and full low by turns, heat). Over another mount ours stacks on top.
+elif grep -q " $PETC overlay .*lowerdir=$STAGE/product_etc_ov/up:" /proc/mounts; then
     echo "Display config: overlay on product/etc already there (an earlier prepare), left as it is"
 elif [ -e "$PETC/displayconfig/display_port_147.xml" ] || [ -e "$PETC/displayconfig/display_port_148.xml" ]; then
     echo "Display config: the image has its own display_port_147/148, left as it is"
@@ -2640,6 +2651,34 @@ if [ -f "$STAGE/SystemUI_patched.apk" ] && [ -f "$QS_APK" ]; then
     fi
 fi
 
+# Infinity-X's SystemUI has its UDFPS overlay but nothing that draws in it:
+# UdfpsControllerOverlay is built with a null UdfpsAnimationViewController, so
+# the keyguard shows no fingerprint icon at all while the sensor still reads a
+# touch and unlocks. Other images (ColorOS, HyperOS, ...) draw their own glyph
+# and must not get this patch, so the block is gated on the image's own
+# ro.infinity.* properties. The APK is the stock one with one dex replaced
+# (scripts/make-systemui-glyph.sh, patches/systemui-guest-glyph); the circle
+# sits where the sensor is on a 1440x3120 screen. ONEOS_GUEST_GLYPH=0 leaves
+# the image's own SystemUI in place.
+INFINITY_X=0
+grep -q '^ro\.infinity\.' "$ROOTFS/system/build.prop" 2>/dev/null && INFINITY_X=1
+if [ "$INFINITY_X" = 1 ] && [ -f "$STAGE/SystemUI_glyph.apk" ] && [ -f "$QS_APK" ]; then
+    if [ "${ONEOS_GUEST_GLYPH:-1}" = 1 ]; then
+        chmod 644 "$STAGE/SystemUI_glyph.apk"
+        $BB chcon u:object_r:system_file:s0 "$STAGE/SystemUI_glyph.apk" 2>/dev/null || true
+        $BB umount -l "$QS_APK" 2>/dev/null || true
+        $BB mount --bind "$STAGE/SystemUI_glyph.apk" "$QS_APK" &&
+            $BB mount -o remount,bind,ro "$STAGE/SystemUI_glyph.apk" "$QS_APK" 2>/dev/null
+        if [ "$(stat -c %d:%i "$QS_APK" 2>/dev/null)" = "$(stat -c %d:%i "$STAGE/SystemUI_glyph.apk")" ]; then
+            echo "Bound SystemUI_glyph.apk -> $QS_APK (Infinity-X keyguard fingerprint glyph)"
+        else
+            echo "!!! WARNING: SystemUI_glyph.apk is not in place; the Infinity-X keyguard shows no fingerprint glyph"
+        fi
+    else
+        echo "Infinity-X fingerprint glyph left out (ONEOS_GUEST_GLYPH=0)"
+    fi
+fi
+
 # ColorOS has no fingerprint ripples of its own: the wake glyph and the wave
 # after a successful unlock are this patched SystemUI
 # (switcher/patches/systemui-fingerprint-wave). Shipping the whole 127 MB APK
@@ -3230,12 +3269,21 @@ fi
 # backlight, and Nothing OS's own range (0.0354 to 1.0) put its lowest step near
 # 70 nits and its highest at the panel's 2600-nit peak (Nothing run 23).
 # Nothing images for now. ONEOS_GUEST_BRIGHTNESS_RANGE=0 keeps the image's.
-if [ -f "$STAGE/OneOSBrightnessRange.apk" ] && [ -f "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" ] &&
+# 0.5.15: a panel at One UI brightnessMaximum below 4.2 (the Galaxy A36's 3.4) takes OneOSBrightnessRange34.apk,
+# the same points scaled to its panel (the Fold's put the slider's top at two thirds of its normal maximum).
+BR_APK=OneOSBrightnessRange.apk
+BR_BM=$(grep 'DisplayDeviceInfo{' "$STAGE/display_modes_host.log" 2>/dev/null | sed -n 's/.*brightnessMaximum \([0-9.]*\).*/\1/p' | head -n 1)
+if [ -f "$STAGE/OneOSBrightnessRange34.apk" ] && awk -v m="$BR_BM" 'BEGIN { exit !(m + 0 >= 1.5 && m + 0 < 4.2) }'; then
+    BR_APK=OneOSBrightnessRange34.apk
+fi
+if [ -f "$STAGE/$BR_APK" ] && [ -f "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" ] &&
    [ "${ONEOS_GUEST_BRIGHTNESS_RANGE:-1}" = 1 ]; then
+    rm -f "$STAGE/oem/overlay/OneOSBrightnessRange.apk" "$STAGE/oem/overlay/OneOSBrightnessRange34.apk"
     mkdir -p "$STAGE/oem/overlay" &&
-        cp "$STAGE/OneOSBrightnessRange.apk" "$STAGE/oem/overlay/" &&
-        chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/OneOSBrightnessRange.apk" &&
-        OEM_FILES="$OEM_FILES overlay/OneOSBrightnessRange.apk"
+        cp "$STAGE/$BR_APK" "$STAGE/oem/overlay/" &&
+        chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/$BR_APK" &&
+        OEM_FILES="$OEM_FILES overlay/$BR_APK" &&
+        echo "Brightness range: $BR_APK (One UI's brightnessMaximum ${BR_BM:-unknown})"
 fi
 # Essential Space from a double press of the power key, for a Nothing image
 # (switcher/overlays/nothing_essential_key): Nothing opens it with its own
@@ -6439,6 +6487,14 @@ if [ "${ONEOS_GUEST_OEM_CAMERA:-0}" != 1 ] && { [ -d "$GUEST_PRODUCT/app/Apertur
         [ -d "$d" ] && [ ! -L "$d" ] || continue
         $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d" && \
             echo "Hid guest ${d#"$ROOTFS"/} (OPPO's camera needs the Find X9 Ultra's camera config and SDK; $OCWHY; ONEOS_GUEST_OEM_CAMERA=1 keeps it)"
+    done
+    # Nothing's camera (0.5.15): it needs Nothing's camera HAL (vendor.noth.hardware.camera INtCamSession) and
+    # its libcameradecision.so, which no Galaxy has; its UFS service and the app crashed in the background
+    # on the A36 ("nothing camera crashes", owner 2026-11-15).
+    for d in "$GUEST_SYSTEM_EXT"/priv-app/NTCamera "$ROOTFS"/system/priv-app/NTCamera "$GUEST_PRODUCT"/priv-app/NTCamera; do
+        [ -d "$d" ] && [ ! -L "$d" ] || continue
+        $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d" && \
+            echo "Hid guest ${d#"$ROOTFS"/} (Nothing's camera needs Nothing's camera HAL; $OCWHY; ONEOS_GUEST_OEM_CAMERA=1 keeps it)"
     done
 fi
 # Google Play services (GMS_WANT, top; docs/pixel-guest.md). GmsCore is

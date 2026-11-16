@@ -4,31 +4,17 @@
 # HyperOS: framework_patched.jar (patches/hyperos_framework.py, CameraStatus as One UI's cameraserver writes it; 0.4.31: and One UI's camera transaction codes, patches/pixel_camera_abi.py)
 # HyperOS: miui-wifi-service_patched.jar (patches/hyperos_hal_ext.py, Xiaomi's HAL extension casts only on Xiaomi's)
 # HyperOS: miui-telephony-common_patched.jar (patches/hyperos_telephony.py, the IMS controller without an IMS phone)
+# HyperOS: miui-framework_patched.jar (patches/hyperos_displayfeature_stub.py, DisplayFeatureManager a no-op without Xiaomi's displayfeature service: the fingerprint-on-display overlay crashed SystemUI)
+# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
-# libsurfaceflinger_patched.so: Xiaomi's SurfaceFlinger with the display mode group read 32-bit (patches/hyperos_sf_group.py; 0.4.37: S23, S24 Ultra, Z Flip5 black screen); 0.4.40: no Xring metadata query without its mapper (patches/hyperos_dolby_mapper.py; S24 Ultra, S23, A57 crash in DolbyRenderer)
-# r14 (0.4.55): services_patched.jar with patches/guest_secims_path_upgrade.py (the IMS carve-out also takes /system/system_ext/priv-app/OneOSSecIms)
-# 0.4.57: framework_patched.jar + guest_secims_members.py (Samsung IMS crashed on SEM_INT, getGroupIdLevel2, isPsOnlyReg)
-# 0.4.59: telephony-common_patched.jar (guest_smsc_international.py + guest_sms_invalid_response.py on the image's jar); samcam.tar (Z Fold8 Ultra camera) and samcam_bar.tar (Galaxy S26 Ultra camera) built for this image
-# 0.4.59: samcam with fix_recorder_track_started.py (videos kept on Stop; AOSP's recorder sends no 905)
-# 0.4.59: samcam with fix_gallery_fallback.py (the thumbnail opens the guest's gallery)
-# 0.4.59: samcam with fix_recorder_progress.py and fix_secmedia_insert.py (recording timer; videos saved without secmedia)
-# 0.4.59: samcam with the timer started by a 0 report and stopped with the recorder, secmedia queries on MediaStore, gallery fallback for secmedia uris
-# 0.4.59: samcam with the video rotation written after the stop (fix_video_rotation.py)
-# 0.4.63: services_patched.jar + guest_pdb_init_survives.py (the PDB start task survives a failed FRP deactivation: no init timeout)
-# 0.4.95: services_patched.jar + guest_local_lock.py (the guest's own screen lock: a PIN, pattern or password kept and checked in the guest; nothing reaches the phone's gatekeeper, weaver or keystore)
-# 0.5.00: services_patched.jar + guest_pdb_frp_writes_fail.py (with One UI's FRP active a guest PDB write fails as an I/O error instead of killing system_server's main thread: no black screen at the first start)
-# 0.5.01: framework_patched.jar + guest_secims_ready.py (Samsung IMS hears telephony is ready for a call's callbacks once telephony attaches to the session: calls end in the guest)
-# 0.5.13 (r29): refreshed the guest fingerprint and screen-lock paths; the MIUI display-feature stub
-# keeps Xiaomi-only display calls from crashing Samsung's guest SystemUI.
 80bbe96b33630321b1ff7b6ef413cefcbf59c3d56948108fc15224c9ab73368d  services_patched.jar
 f4c77087cd362502b40501e07943816d55137d2620e6748ac573458615d89e11  miui-services_patched.jar
-5909828c9bbfcef3f41d82382f03ed2c57e9aadeb739945365c77300748a043a  miui-framework_patched.jar
 123d638587d3aaaa046f510d98f2d568e4eccf456b590a0f42192a976f162b14  apprecovery.proinstaller_patched.jar
 5aa3bf6ce8d28f6f4f188ed38cf0dc1f151e708eb3c2e3f86db64c0ff801c7e3  framework_patched.jar
 47c2450ba571f1936a8205f4c55363f196bf58789ce674da4ae9cfba98627fda  miui-wifi-service_patched.jar
 a7d6ae5ae6bb6460b0d15f43ec8a3079c07a586cc561e0bff0552ce9e171dd01  miui-telephony-common_patched.jar
+5909828c9bbfcef3f41d82382f03ed2c57e9aadeb739945365c77300748a043a  miui-framework_patched.jar
 dc60d42c1b880ea079a55f17e994bbc58c5c12beb23985be97d0811d615b4b49  vold_patched
 282447b888645136c61cab74548e75fd5cec656636c8a16d57a47bcf21e04ff4  service.incremental_patched.so
-977059f2193c2d04987e4fd96be604a2a042aa207841ce3f31e63a3ac9b33e59  libcamera_client_patched.so
-469233dd74dd3083900d42c385c497f8db9e7c3756a191cb28ab8ca583583d29  libsurfaceflinger_patched.so
 d2acf8e0a2adc8f174345f6e62dbd2c5e4a9e2054b5576a55625bb470ef2e88d  telephony-common_patched.jar
+977059f2193c2d04987e4fd96be604a2a042aa207841ce3f31e63a3ac9b33e59  libcamera_client_patched.so

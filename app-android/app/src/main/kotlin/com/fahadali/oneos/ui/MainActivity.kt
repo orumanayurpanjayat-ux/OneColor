@@ -26,6 +26,7 @@ class MainActivity : ToolbarActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        EditionHome.started(this)
         if (isFinishing) return
         setExpandedSubtitle(getString(R.string.home_subtitle))
         EditionHome.created(this)
