@@ -321,6 +321,9 @@ object PackageSets {
         hasReturnApp = true,
     )
 
+    private val X9U_1105_UNPUBLISHED_VISUAL_FILES = listOf("ColorPanoramicSystemUI.apk", "SystemUI_wave.dex")
+    private const val X9U_1105_UNPUBLISHED_VISUAL_BYTES = 145_227_238L
+
     /**
      * 0.5.02: the newer Find X9 Ultra IN build ([Images.FIND_X9U_IN_1105]): the same files as
      * [X9U_IN_SULTRA], built from that image (out/overlays_x9u_in_1105_r1: its own surfaceflinger and
@@ -331,8 +334,12 @@ object PackageSets {
         imageId = Images.ID_FIND_X9U_IN_1105,
         sourceDir = "out/overlays_x9u_in_1105_r2",
         // 0.5.05 (r2): oplus-framework_patched.jar right after the common files, as root's set_files lists it.
-        files = COMMON + OPLUS_FRAMEWORK_IMS + X9U_IN_SULTRA.files.drop(COMMON.size),
-        approxBytes = X9U_IN_SULTRA.approxBytes + 12_546_637L,
+        // The image-specific wallpaper AOD and fingerprint-wave files are optional visual changes, but remain
+        // local-only. Keep the published shared wave repacker; omit only the two payloads no server has.
+        files = COMMON + OPLUS_FRAMEWORK_IMS + X9U_IN_SULTRA.files.drop(COMMON.size)
+            .filterNot { it.name in X9U_1105_UNPUBLISHED_VISUAL_FILES },
+        omitted = X9U_IN_SULTRA.omitted + X9U_1105_UNPUBLISHED_VISUAL_FILES,
+        approxBytes = X9U_IN_SULTRA.approxBytes + 12_546_637L - X9U_1105_UNPUBLISHED_VISUAL_BYTES,
     )
 
     /** The Pixel sets' files (root's SET_PIXEL): the same for every Pixel image. */

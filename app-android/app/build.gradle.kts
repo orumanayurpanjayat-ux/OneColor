@@ -59,7 +59,7 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // Find X9 Ultra IN image (0.3.3-0.3.6, again from 0.4.11), the bar phones:
     // the CN set's files (shared by hash) and its cell broadcast module.
     // 0.5.02: the newer Find X9 Ultra IN build (CPH2841IN, 2026-11-01), offered next to the older one.
-    "x9u-in-1105-sultra" to (File(repoRoot, "out/overlays_x9u_in_1105_r2") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
+    "x9u-in-1105-sultra" to (File(repoRoot, "out/overlays_x9u_in_1105_r2") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk", "ColorPanoramicSystemUI.apk", "SystemUI_wave.dex")),
     // Pixel 11 Fold image (0.3.7), Z Fold (F8U): everything a Pixel session uses,
     // OneOSGuest.apk included, and the fold hinge (scripts/make-fold8-pixel.py --variant f8u).
     "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r19") to listOf("tethering_payload.img")),
