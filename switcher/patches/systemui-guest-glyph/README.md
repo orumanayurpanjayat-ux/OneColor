@@ -59,8 +59,10 @@ the APK instead. That costs one slower first start of SystemUI and nothing else.
 
 ## Deploy
 
-`SystemUI_glyph.apk` is a file of the `infinityx` package set and
-`guest_prepare.sh` bind-mounts it over the image's SystemUI:
+`SystemUI_glyph.apk` is a file of the `infinityx` package set
+(`app-android/packages/infinityx.sha256`), so the app fetches it by sha256 on
+install and puts it in the stage. `guest_prepare.sh` bind-mounts it over the
+image's SystemUI:
 
 ```sh
 mount --bind "$STAGE/SystemUI_glyph.apk" "$GUEST_SYSTEM_EXT/priv-app/SystemUI/SystemUI.apk"
