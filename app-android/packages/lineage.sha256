@@ -1,4 +1,6 @@
 # OneOS package set lineage: sha256sum of out/overlays_lineage_r6 (LineageOS 24.0, OnePlus 15 infiniti nightly of 2026-11-11, CP2A.260605.016; r1 of 2026-11-13 from scripts/make-overlays.sh with the gvld pins for its vold and service.incremental.so), minus tethering_payload.img and cellbroadcast_payload.img (One UI's modules stay, as for Infinity-X). No gmssystem payload: One UI's Google apps are laid over the guest's product partition at session time (guest_google.sh FULL mode). 0.5.06 r2: r1 plus OneOSPixelDoze.apk (AOD), 2026-11-14. 0.5.07 r3: r2 plus libbootanimation_preapex_patched.so (boot animation on every panel), 2026-11-14. 0.5.07 r4: services_patched.jar with patches/guest_sp_migration_tolerant.py, 2026-11-14.
+# 0.5.17 r8: services_patched.jar with the guest lock's gatekeeper handle, so the setup
+# wizard's face enrollment gets a token (switcher/patches/guest_local_lock_hat.py), 2026-11-16.
 # app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_lineage_r6 differs.
 # 0.5.14 r6: r5 with the current OneOSGuest.apk and Samsung Camera (samcam_a.tar for A/M phones, samcam_bar.tar for bar phones).
 # 0.5.15 r7: framework_patched.jar with Samsung slow motion's three-output high-speed session; samcam_a.tar without libmediaresourcehelper (A-series video).
@@ -33,7 +35,7 @@ b41e93245094fed4ef3f8122923573f41e72dfa9fe1defffd0feccb0b89cfa2b  permission_pay
 bdfa0709054f5b23b1a80d064e4cf3fc32f751d81fd7fe11f53878da7426e856  runtime_payload.img
 d373a66a2b56c4ffcd2f62a6c9542dd7e7436d40f902ae02760aa8d6377ceb8c  sdkext_payload.img
 0235d2312e659dfb00b7bab3e6b8189e36ccd2b61d1c298f01347e8d4615bc5d  service.incremental_patched.so
-0b05d086f6b0432d4164181823195cc4f73fc9916e3aa5035001b3a1a0928b98  services_patched.jar
+d335963dc816184ebe63b0782feda48c8bc460df9db53392c741f7a5256d7d5c  services_patched.jar
 8eeb43db3299c6735887582769f69d78fbd09a7f24c12b919d5c7017639da6db  telephony-common_patched.jar
 e47bdd2692863f919b63b1e995d581a32714058558c68473bbc44136724dd7f7  telephonycore_payload.img
 edcf391437b107dc9a86a5c1435c7aba9a572373344aa62d9c972c7ab2d36dc2  vold_patched
