@@ -1,0 +1,506 @@
+--- a/smali_classes2/com/android/systemui/shade/NotificationShadeWindowView.smali
++++ b/smali_classes2/com/android/systemui/shade/NotificationShadeWindowView.smali
+@@ -863,7 +863,7 @@
+ .end method
+ 
+ .method public final onAttachedToWindow()V
+-    .locals 1
++    .locals 4
+ 
+     invoke-super {p0}, Lcom/android/systemui/scene/ui/view/WindowRootView;->onAttachedToWindow()V
+ 
+@@ -871,6 +871,31 @@
+ 
+     invoke-virtual {p0, v0}, Landroid/widget/FrameLayout;->setWillNotDraw(Z)V
+ 
++    const v0, 0xe05ee01
++
++    invoke-virtual {p0, v0}, Landroid/view/View;->findViewById(I)Landroid/view/View;
++
++    move-result-object v1
++
++    if-nez v1, :cond_0
++
++    new-instance v1, Lcom/oneos/glyph/OneOSGlyphView;
++
++    invoke-virtual {p0}, Landroid/view/View;->getContext()Landroid/content/Context;
++
++    move-result-object v2
++
++    invoke-direct {v1, v2}, Lcom/oneos/glyph/OneOSGlyphView;-><init>(Landroid/content/Context;)V
++
++    new-instance v2, Landroid/widget/FrameLayout$LayoutParams;
++
++    const/4 v3, -0x1
++
++    invoke-direct {v2, v3, v3}, Landroid/widget/FrameLayout$LayoutParams;-><init>(II)V
++
++    invoke-virtual {p0, v1, v2}, Landroid/view/ViewGroup;->addView(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V
++
++    :cond_0
+     return-void
+ .end method
+ 
+--- /dev/null
++++ b/smali_classes2/com/oneos/glyph/OneOSGlyphView.smali
+@@ -0,0 +1,311 @@
++.class public final Lcom/oneos/glyph/OneOSGlyphView;
++.super Landroid/view/View;
++.source "OneOSGlyphView.java"
++
++
++# static fields
++.field private static final CENTER_X_FRACTION:I = 0x1388
++
++.field private static final CENTER_Y_FRACTION:I = 0x1e78
++
++.field private static final DIAMETER:I = 0xc4
++
++
++# instance fields
++.field private keyguardManager:Landroid/app/KeyguardManager;
++
++.field private lockedListener:Landroid/app/KeyguardManager$KeyguardLockedStateListener;
++
++.field private final stroke:Landroid/graphics/Paint;
++
++
++# direct methods
++.method static bridge synthetic -$$Nest$mapplyLockedState(Lcom/oneos/glyph/OneOSGlyphView;Z)V
++    .locals 0
++
++    invoke-direct {p0, p1}, Lcom/oneos/glyph/OneOSGlyphView;->applyLockedState(Z)V
++
++    return-void
++.end method
++
++.method public constructor <init>(Landroid/content/Context;)V
++    .locals 1
++
++    .line 31
++    invoke-direct {p0, p1}, Landroid/view/View;-><init>(Landroid/content/Context;)V
++
++    .line 26
++    new-instance p1, Landroid/graphics/Paint;
++
++    const/4 v0, 0x1
++
++    invoke-direct {p1, v0}, Landroid/graphics/Paint;-><init>(I)V
++
++    iput-object p1, p0, Lcom/oneos/glyph/OneOSGlyphView;->stroke:Landroid/graphics/Paint;
++
++    .line 32
++    iget-object p1, p0, Lcom/oneos/glyph/OneOSGlyphView;->stroke:Landroid/graphics/Paint;
++
++    sget-object v0, Landroid/graphics/Paint$Style;->STROKE:Landroid/graphics/Paint$Style;
++
++    invoke-virtual {p1, v0}, Landroid/graphics/Paint;->setStyle(Landroid/graphics/Paint$Style;)V
++
++    .line 33
++    iget-object p1, p0, Lcom/oneos/glyph/OneOSGlyphView;->stroke:Landroid/graphics/Paint;
++
++    sget-object v0, Landroid/graphics/Paint$Cap;->ROUND:Landroid/graphics/Paint$Cap;
++
++    invoke-virtual {p1, v0}, Landroid/graphics/Paint;->setStrokeCap(Landroid/graphics/Paint$Cap;)V
++
++    .line 34
++    iget-object p1, p0, Lcom/oneos/glyph/OneOSGlyphView;->stroke:Landroid/graphics/Paint;
++
++    const/4 v0, -0x1
++
++    invoke-virtual {p1, v0}, Landroid/graphics/Paint;->setColor(I)V
++
++    .line 35
++    iget-object p1, p0, Lcom/oneos/glyph/OneOSGlyphView;->stroke:Landroid/graphics/Paint;
++
++    const/16 v0, 0xc8
++
++    invoke-virtual {p1, v0}, Landroid/graphics/Paint;->setAlpha(I)V
++
++    .line 36
++    const p1, 0xe05ee01
++
++    invoke-virtual {p0, p1}, Lcom/oneos/glyph/OneOSGlyphView;->setId(I)V
++
++    .line 37
++    const/4 p1, 0x0
++
++    invoke-virtual {p0, p1}, Lcom/oneos/glyph/OneOSGlyphView;->setClickable(Z)V
++
++    .line 38
++    invoke-virtual {p0, p1}, Lcom/oneos/glyph/OneOSGlyphView;->setFocusable(Z)V
++
++    .line 39
++    const/4 p1, 0x2
++
++    invoke-virtual {p0, p1}, Lcom/oneos/glyph/OneOSGlyphView;->setImportantForAccessibility(I)V
++
++    .line 40
++    const/4 p1, 0x4
++
++    invoke-virtual {p0, p1}, Lcom/oneos/glyph/OneOSGlyphView;->setVisibility(I)V
++
++    .line 41
++    return-void
++.end method
++
++.method private applyLockedState(Z)V
++    .locals 0
++
++    .line 84
++    if-eqz p1, :cond_0
++
++    const/4 p1, 0x0
++
++    goto :goto_0
++
++    :cond_0
++    const/4 p1, 0x4
++
++    :goto_0
++    invoke-virtual {p0, p1}, Lcom/oneos/glyph/OneOSGlyphView;->setVisibility(I)V
++
++    .line 85
++    return-void
++.end method
++
++
++# virtual methods
++.method protected onAttachedToWindow()V
++    .locals 3
++
++    .line 45
++    invoke-super {p0}, Landroid/view/View;->onAttachedToWindow()V
++
++    .line 46
++    nop
++
++    .line 47
++    invoke-virtual {p0}, Lcom/oneos/glyph/OneOSGlyphView;->getContext()Landroid/content/Context;
++
++    move-result-object v0
++
++    const-string v1, "keyguard"
++
++    invoke-virtual {v0, v1}, Landroid/content/Context;->getSystemService(Ljava/lang/String;)Ljava/lang/Object;
++
++    move-result-object v0
++
++    check-cast v0, Landroid/app/KeyguardManager;
++
++    iput-object v0, p0, Lcom/oneos/glyph/OneOSGlyphView;->keyguardManager:Landroid/app/KeyguardManager;
++
++    .line 48
++    iget-object v0, p0, Lcom/oneos/glyph/OneOSGlyphView;->keyguardManager:Landroid/app/KeyguardManager;
++
++    if-eqz v0, :cond_0
++
++    .line 49
++    new-instance v0, Lcom/oneos/glyph/OneOSGlyphView$1;
++
++    invoke-direct {v0, p0}, Lcom/oneos/glyph/OneOSGlyphView$1;-><init>(Lcom/oneos/glyph/OneOSGlyphView;)V
++
++    iput-object v0, p0, Lcom/oneos/glyph/OneOSGlyphView;->lockedListener:Landroid/app/KeyguardManager$KeyguardLockedStateListener;
++
++    .line 56
++    iget-object v0, p0, Lcom/oneos/glyph/OneOSGlyphView;->keyguardManager:Landroid/app/KeyguardManager;
++
++    .line 57
++    invoke-virtual {p0}, Lcom/oneos/glyph/OneOSGlyphView;->getContext()Landroid/content/Context;
++
++    move-result-object v1
++
++    invoke-virtual {v1}, Landroid/content/Context;->getMainExecutor()Ljava/util/concurrent/Executor;
++
++    move-result-object v1
++
++    iget-object v2, p0, Lcom/oneos/glyph/OneOSGlyphView;->lockedListener:Landroid/app/KeyguardManager$KeyguardLockedStateListener;
++
++    .line 56
++    invoke-virtual {v0, v1, v2}, Landroid/app/KeyguardManager;->addKeyguardLockedStateListener(Ljava/util/concurrent/Executor;Landroid/app/KeyguardManager$KeyguardLockedStateListener;)V
++
++    .line 58
++    iget-object v0, p0, Lcom/oneos/glyph/OneOSGlyphView;->keyguardManager:Landroid/app/KeyguardManager;
++
++    invoke-virtual {v0}, Landroid/app/KeyguardManager;->isKeyguardLocked()Z
++
++    move-result v0
++
++    invoke-direct {p0, v0}, Lcom/oneos/glyph/OneOSGlyphView;->applyLockedState(Z)V
++
++    .line 60
++    :cond_0
++    invoke-virtual {p0}, Lcom/oneos/glyph/OneOSGlyphView;->getViewTreeObserver()Landroid/view/ViewTreeObserver;
++
++    move-result-object v0
++
++    new-instance v1, Lcom/oneos/glyph/OneOSGlyphView$2;
++
++    invoke-direct {v1, p0}, Lcom/oneos/glyph/OneOSGlyphView$2;-><init>(Lcom/oneos/glyph/OneOSGlyphView;)V
++
++    invoke-virtual {v0, v1}, Landroid/view/ViewTreeObserver;->addOnGlobalLayoutListener(Landroid/view/ViewTreeObserver$OnGlobalLayoutListener;)V
++
++    .line 71
++    return-void
++.end method
++
++.method protected onDetachedFromWindow()V
++    .locals 2
++
++    .line 75
++    iget-object v0, p0, Lcom/oneos/glyph/OneOSGlyphView;->keyguardManager:Landroid/app/KeyguardManager;
++
++    if-eqz v0, :cond_0
++
++    iget-object v0, p0, Lcom/oneos/glyph/OneOSGlyphView;->lockedListener:Landroid/app/KeyguardManager$KeyguardLockedStateListener;
++
++    if-eqz v0, :cond_0
++
++    .line 76
++    iget-object v0, p0, Lcom/oneos/glyph/OneOSGlyphView;->keyguardManager:Landroid/app/KeyguardManager;
++
++    iget-object v1, p0, Lcom/oneos/glyph/OneOSGlyphView;->lockedListener:Landroid/app/KeyguardManager$KeyguardLockedStateListener;
++
++    invoke-virtual {v0, v1}, Landroid/app/KeyguardManager;->removeKeyguardLockedStateListener(Landroid/app/KeyguardManager$KeyguardLockedStateListener;)V
++
++    .line 78
++    :cond_0
++    const/4 v0, 0x0
++
++    iput-object v0, p0, Lcom/oneos/glyph/OneOSGlyphView;->keyguardManager:Landroid/app/KeyguardManager;
++
++    .line 79
++    iput-object v0, p0, Lcom/oneos/glyph/OneOSGlyphView;->lockedListener:Landroid/app/KeyguardManager$KeyguardLockedStateListener;
++
++    .line 80
++    invoke-super {p0}, Landroid/view/View;->onDetachedFromWindow()V
++
++    .line 81
++    return-void
++.end method
++
++.method protected onDraw(Landroid/graphics/Canvas;)V
++    .locals 5
++
++    .line 96
++    invoke-virtual {p0}, Lcom/oneos/glyph/OneOSGlyphView;->getWidth()I
++
++    move-result v0
++
++    mul-int/lit16 v0, v0, 0x1388
++
++    int-to-float v0, v0
++
++    const v1, 0x461c4000    # 10000.0f
++
++    div-float/2addr v0, v1
++
++    .line 97
++    invoke-virtual {p0}, Lcom/oneos/glyph/OneOSGlyphView;->getHeight()I
++
++    move-result v2
++
++    mul-int/lit16 v2, v2, 0x1e78
++
++    int-to-float v2, v2
++
++    div-float/2addr v2, v1
++
++    .line 98
++    nop
++
++    .line 99
++    iget-object v1, p0, Lcom/oneos/glyph/OneOSGlyphView;->stroke:Landroid/graphics/Paint;
++
++    const/high16 v3, 0x40800000    # 4.0f
++
++    const v4, 0x413c28f5    # 11.759999f
++
++    invoke-static {v3, v4}, Ljava/lang/Math;->max(FF)F
++
++    move-result v3
++
++    invoke-virtual {v1, v3}, Landroid/graphics/Paint;->setStrokeWidth(F)V
++
++    .line 100
++    iget-object v1, p0, Lcom/oneos/glyph/OneOSGlyphView;->stroke:Landroid/graphics/Paint;
++
++    const/high16 v3, 0x42c40000    # 98.0f
++
++    invoke-virtual {p1, v0, v2, v3, v1}, Landroid/graphics/Canvas;->drawCircle(FFFLandroid/graphics/Paint;)V
++
++    .line 101
++    return-void
++.end method
++
++.method protected onMeasure(II)V
++    .locals 0
++
++    .line 89
++    nop
++
++    .line 90
++    invoke-static {p1}, Landroid/view/View$MeasureSpec;->getSize(I)I
++
++    move-result p1
++
++    .line 91
++    invoke-static {p2}, Landroid/view/View$MeasureSpec;->getSize(I)I
++
++    move-result p2
++
++    .line 89
++    invoke-virtual {p0, p1, p2}, Lcom/oneos/glyph/OneOSGlyphView;->setMeasuredDimension(II)V
++
++    .line 92
++    return-void
++.end method
+--- /dev/null
++++ b/smali_classes2/com/oneos/glyph/OneOSGlyphView$1.smali
+@@ -0,0 +1,56 @@
++.class Lcom/oneos/glyph/OneOSGlyphView$1;
++.super Ljava/lang/Object;
++.source "OneOSGlyphView.java"
++
++# interfaces
++.implements Landroid/app/KeyguardManager$KeyguardLockedStateListener;
++
++
++# annotations
++.annotation system Ldalvik/annotation/EnclosingMethod;
++    value = Lcom/oneos/glyph/OneOSGlyphView;->onAttachedToWindow()V
++.end annotation
++
++.annotation system Ldalvik/annotation/InnerClass;
++    accessFlags = 0x0
++    name = null
++.end annotation
++
++
++# instance fields
++.field final synthetic this$0:Lcom/oneos/glyph/OneOSGlyphView;
++
++
++# direct methods
++.method constructor <init>(Lcom/oneos/glyph/OneOSGlyphView;)V
++    .locals 0
++    .annotation system Ldalvik/annotation/MethodParameters;
++        accessFlags = {
++            0x8010
++        }
++        names = {
++            null
++        }
++    .end annotation
++
++    .line 50
++    iput-object p1, p0, Lcom/oneos/glyph/OneOSGlyphView$1;->this$0:Lcom/oneos/glyph/OneOSGlyphView;
++
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++
++    return-void
++.end method
++
++
++# virtual methods
++.method public onKeyguardLockedStateChanged(Z)V
++    .locals 1
++
++    .line 53
++    iget-object v0, p0, Lcom/oneos/glyph/OneOSGlyphView$1;->this$0:Lcom/oneos/glyph/OneOSGlyphView;
++
++    invoke-static {v0, p1}, Lcom/oneos/glyph/OneOSGlyphView;->-$$Nest$mapplyLockedState(Lcom/oneos/glyph/OneOSGlyphView;Z)V
++
++    .line 54
++    return-void
++.end method
+--- /dev/null
++++ b/smali_classes2/com/oneos/glyph/OneOSGlyphView$2.smali
+@@ -0,0 +1,87 @@
++.class Lcom/oneos/glyph/OneOSGlyphView$2;
++.super Ljava/lang/Object;
++.source "OneOSGlyphView.java"
++
++# interfaces
++.implements Landroid/view/ViewTreeObserver$OnGlobalLayoutListener;
++
++
++# annotations
++.annotation system Ldalvik/annotation/EnclosingMethod;
++    value = Lcom/oneos/glyph/OneOSGlyphView;->onAttachedToWindow()V
++.end annotation
++
++.annotation system Ldalvik/annotation/InnerClass;
++    accessFlags = 0x0
++    name = null
++.end annotation
++
++
++# instance fields
++.field final synthetic this$0:Lcom/oneos/glyph/OneOSGlyphView;
++
++
++# direct methods
++.method constructor <init>(Lcom/oneos/glyph/OneOSGlyphView;)V
++    .locals 0
++    .annotation system Ldalvik/annotation/MethodParameters;
++        accessFlags = {
++            0x8010
++        }
++        names = {
++            null
++        }
++    .end annotation
++
++    .line 61
++    iput-object p1, p0, Lcom/oneos/glyph/OneOSGlyphView$2;->this$0:Lcom/oneos/glyph/OneOSGlyphView;
++
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++
++    return-void
++.end method
++
++
++# virtual methods
++.method public onGlobalLayout()V
++    .locals 2
++
++    .line 64
++    iget-object v0, p0, Lcom/oneos/glyph/OneOSGlyphView$2;->this$0:Lcom/oneos/glyph/OneOSGlyphView;
++
++    invoke-virtual {v0}, Lcom/oneos/glyph/OneOSGlyphView;->getParent()Landroid/view/ViewParent;
++
++    move-result-object v0
++
++    check-cast v0, Landroid/view/ViewGroup;
++
++    .line 65
++    if-nez v0, :cond_0
++
++    return-void
++
++    .line 66
++    :cond_0
++    iget-object v1, p0, Lcom/oneos/glyph/OneOSGlyphView$2;->this$0:Lcom/oneos/glyph/OneOSGlyphView;
++
++    invoke-virtual {v0, v1}, Landroid/view/ViewGroup;->indexOfChild(Landroid/view/View;)I
++
++    move-result v1
++
++    invoke-virtual {v0}, Landroid/view/ViewGroup;->getChildCount()I
++
++    move-result v0
++
++    add-int/lit8 v0, v0, -0x1
++
++    if-eq v1, v0, :cond_1
++
++    .line 67
++    iget-object v0, p0, Lcom/oneos/glyph/OneOSGlyphView$2;->this$0:Lcom/oneos/glyph/OneOSGlyphView;
++
++    invoke-virtual {v0}, Lcom/oneos/glyph/OneOSGlyphView;->bringToFront()V
++
++    .line 69
++    :cond_1
++    return-void
++.end method

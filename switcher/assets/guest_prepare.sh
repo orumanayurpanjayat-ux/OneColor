@@ -2651,6 +2651,34 @@ if [ -f "$STAGE/SystemUI_patched.apk" ] && [ -f "$QS_APK" ]; then
     fi
 fi
 
+# Infinity-X's SystemUI has its UDFPS overlay but nothing that draws in it:
+# UdfpsControllerOverlay is built with a null UdfpsAnimationViewController, so
+# the keyguard shows no fingerprint icon at all while the sensor still reads a
+# touch and unlocks. Other images (ColorOS, HyperOS, ...) draw their own glyph
+# and must not get this patch, so the block is gated on the image's own
+# ro.infinity.* properties. The APK is the stock one with one dex replaced
+# (scripts/make-systemui-glyph.sh, patches/systemui-guest-glyph); the circle
+# sits where the sensor is on a 1440x3120 screen. ONEOS_GUEST_GLYPH=0 leaves
+# the image's own SystemUI in place.
+INFINITY_X=0
+grep -q '^ro\.infinity\.' "$ROOTFS/system/build.prop" 2>/dev/null && INFINITY_X=1
+if [ "$INFINITY_X" = 1 ] && [ -f "$STAGE/SystemUI_glyph.apk" ] && [ -f "$QS_APK" ]; then
+    if [ "${ONEOS_GUEST_GLYPH:-1}" = 1 ]; then
+        chmod 644 "$STAGE/SystemUI_glyph.apk"
+        $BB chcon u:object_r:system_file:s0 "$STAGE/SystemUI_glyph.apk" 2>/dev/null || true
+        $BB umount -l "$QS_APK" 2>/dev/null || true
+        $BB mount --bind "$STAGE/SystemUI_glyph.apk" "$QS_APK" &&
+            $BB mount -o remount,bind,ro "$STAGE/SystemUI_glyph.apk" "$QS_APK" 2>/dev/null
+        if [ "$(stat -c %d:%i "$QS_APK" 2>/dev/null)" = "$(stat -c %d:%i "$STAGE/SystemUI_glyph.apk")" ]; then
+            echo "Bound SystemUI_glyph.apk -> $QS_APK (Infinity-X keyguard fingerprint glyph)"
+        else
+            echo "!!! WARNING: SystemUI_glyph.apk is not in place; the Infinity-X keyguard shows no fingerprint glyph"
+        fi
+    else
+        echo "Infinity-X fingerprint glyph left out (ONEOS_GUEST_GLYPH=0)"
+    fi
+fi
+
 # ColorOS has no fingerprint ripples of its own: the wake glyph and the wave
 # after a successful unlock are this patched SystemUI
 # (switcher/patches/systemui-fingerprint-wave). Shipping the whole 127 MB APK
