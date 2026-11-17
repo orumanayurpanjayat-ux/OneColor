@@ -437,10 +437,10 @@
     <string name="bring_confirm_new">Только новые</string>
     <string name="bring_confirm_all">Все %1$d</string>
     <plurals name="bring_again_title">
-        <item quantity="one">Перенести это приложение снова?</item>
-        <item quantity="few">Перенести эти приложения снова?</item>
-        <item quantity="many">Перенести эти приложения снова?</item>
-        <item quantity="other">Перенести эти приложения снова?</item>
+        <item quantity="one">Перенести %d приложение снова?</item>
+        <item quantity="few">Перенести %d приложения снова?</item>
+        <item quantity="many">Перенести %d приложений снова?</item>
+        <item quantity="other">Перенести %d приложения снова?</item>
     </plurals>
     <plurals name="bring_again_body">
         <item quantity="one">%1$d приложение уже есть в %2$s. Повторный перенос заменит его данные в %2$s копией из One UI: всё, что вы сделали в нём там с тех пор, будет потеряно. One UI не меняется.</item>
@@ -460,4 +460,9 @@
     <string name="bring_change_data">В One UI более новые данные</string>
     <string name="bring_change_app">С тех пор обновлено в One UI</string>
     <string name="bring_change_gone">Больше не установлено в One UI</string>
+    <string name="biometric_help_title">PIN-код гостевой системы и биометрия</string>
+    <string name="biometric_help_summary">Отпечаток, распознавание лица и обновление патча PIN-кода гостевой системы</string>
+    <string name="biometric_help_intro">OneOS переносит в гостевую систему уже существующие данные регистрации отпечатка пальца и лица из One UI. Биометрические шаблоны остаются в защищённом оборудовании телефона; OneOS их не копирует. Сначала зарегистрируйте отпечатки или лицо в One UI. Добавление нового отпечатка или лица в гостевой системе не поддерживается при этой настройке локального PIN-кода.</string>
+    <string name="biometric_help_patch">Проверка PIN-кода гостевой системы и адаптер отпечатка Samsung AIDL v3 хранятся в исправленном services.jar в данных гостевой системы. OneOS использует эту копию, только пока её метка SHA-256 совпадает с текущим подготовленным jar-файлом. После обновления исправлений, если в журнале сеанса сказано, что сохранённый jar-файл устарел или отсутствует, подключите телефон с root-доступом к компьютеру и запустите scripts/install-pin-jar.sh из клона OneColor. Сначала он применит патч AIDL-отпечатка, затем патч локального PIN-кода гостевой системы.</string>
+    <string name="biometric_help_troubleshooting">Если датчик или PIN-код по-прежнему не работает, откройте последние журналы сеанса на главном экране и отправьте их команде OneOS. Никогда не сообщайте свой PIN-код.</string>
 </resources>

@@ -34,6 +34,9 @@
     <string name="home_details_all">Все проверки</string>
     <string name="menu_how">Прежде чем начать</string>
     <string name="menu_about">О OneOS</string>
+    <string name="menu_last_session">Последний сеанс</string>
+    <string name="menu_latest_logs">Последние журналы сеанса</string>
+    <string name="menu_phone_details">Сведения о телефоне</string>
     <string name="image_choice_title">Образ %1$s</string>
     <string name="image_pick_title">Выбрать скачанный файл</string>
     <string name="image_picked_unnamed">Выбранный файл</string>
